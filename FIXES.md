@@ -54,7 +54,27 @@ app.get('/', (req, res) => {
 
 This provides a simple health check endpoint and identifies the server when accessed directly.
 
-## 3. Documentation Improvements
+## 3. Favicon 404 Error
+
+### Problem
+Browsers automatically request `/favicon.ico` which resulted in 404 errors in the console.
+
+### Root Cause
+The backend API server doesn't serve static files like favicons.
+
+### Solution
+Added a specific route handler for favicon requests:
+
+```javascript
+// Favicon route to prevent 404 errors in browser console
+app.get('/favicon.ico', (req, res) => {
+    res.status(204).end();
+});
+```
+
+This returns a 204 (No Content) response which prevents the 404 error without actually serving a favicon.
+
+## 4. Documentation Improvements
 
 ### Added Troubleshooting Section
 Enhanced README.md with a troubleshooting section that includes:
@@ -67,7 +87,7 @@ Enhanced README.md with a troubleshooting section that includes:
 - Warnings about using placeholder values in production
 - Better organization of environment variables in the documentation
 
-## 4. Deployment Scripts
+## 5. Deployment Scripts
 
 Created deployment helper scripts:
 - `deploy-prod.sh` for Linux/Mac environments
@@ -83,9 +103,8 @@ These scripts include validation checks for required tools and environment varia
    docker-compose -f docker-compose-prod.yml down
    docker-compose -f docker-compose-prod.yml up -d --build
    ```
-3. Access the API root endpoint to verify the fix:
-   ```
-   https://pulse-api.academy.alenia.io/
-   ```
+3. Access the API endpoints to verify the fixes:
+   - Root endpoint: `https://pulse-api.academy.alenia.io/`
+   - Health check: `https://pulse-api.academy.alenia.io/api/health`
 
-The server should now respond with a JSON message identifying the Alenia Pulse API server.
+The server should now respond correctly to all requests without 404 errors in the browser console.
