@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, LogIn, LogOut, Plus, Edit, Trash2, Eye, Users, Settings, Globe, Lock, Calendar, Tag, Mail, Newspaper } from 'lucide-react';
+import { Search, User, LogOut, Plus, Trash2, Calendar, Sun, Moon, Mail, Newspaper } from 'lucide-react';
 import './App.css';
 
 const App = () => {
+  // State management
   const [domains, setDomains] = useState([]);
   const [news, setNews] = useState([]);
   const [users, setUsers] = useState([]);
   const [subscribers, setSubscribers] = useState([]);
-  const [currentView, setCurrentView] = useState('public'); // public, contributor, admin
+  const [currentView, setCurrentView] = useState('public');
   const [currentUser, setCurrentUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showLogin, setShowLogin] = useState(false);
@@ -15,86 +16,96 @@ const App = () => {
   const [notification, setNotification] = useState(null);
   const [showAddNews, setShowAddNews] = useState(false);
   const [newNews, setNewNews] = useState({ title: '', content: '', domain: '' });
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', email: '', password: '', role: 'contributor', domain: '' });
   const [filterDomain, setFilterDomain] = useState('all');
   const [showAddDomain, setShowAddDomain] = useState(false);
-  const [newDomain, setNewDomain] = useState({ name: '', color: 'bg-blue-500' });
+  const [newDomain, setNewDomain] = useState({ name: '', color: '#3b82f6' });
+  const [darkMode, setDarkMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Available colors for domains
-  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500', 'bg-pink-500', 'bg-yellow-500', 'bg-indigo-500'];
-
-  // Fetch public data from the backend
-  const fetchPublicData = async () => {
-    try {
-      // Use environment variable for API base URL, fallback to localhost if not set
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
-      const [domainsRes, newsRes] = await Promise.all([
-        fetch(`${apiUrl}/api/domains`),
-        fetch(`${apiUrl}/api/news`)
-      ]);
-
-      if (domainsRes.ok && newsRes.ok) {
-        setDomains(await domainsRes.json());
-        setNews(await newsRes.json());
-      }
-    } catch (error) {
-      console.error('Error fetching public data:', error);
-    }
+  // Domain colors mapping
+  const domainColors = {
+    'Hiring': '#3b82f6',        // Blue
+    'Event': '#8b5cf6',         // Purple
+    'Journey': '#22c55e',       // Green
+    'Communication': '#f97316', // Orange
+    'Admin': '#ef4444'          // Red
   };
 
-  // Fetch protected data from the backend (only when user is authenticated)
-  const fetchProtectedData = async () => {
-    if (!currentUser) return;
+  // Available colors for new domains
+  const availableColors = [
+    { name: 'Blue', value: '#3b82f6' },
+    { name: 'Green', value: '#22c55e' },
+    { name: 'Purple', value: '#a855f7' },
+    { name: 'Orange', value: '#f97316' },
+    { name: 'Red', value: '#ef4444' },
+    { name: 'Pink', value: '#ec4899' },
+    { name: 'Yellow', value: '#eab308' },
+    { name: 'Indigo', value: '#6366f1' }
+  ];
 
-    try {
-      // Use environment variable for API base URL, fallback to localhost if not set
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
-      const requests = [];
-      const requestNames = [];
-
-      // Always fetch users and subscribers for admin users
-      if (currentUser.role === 'admin') {
-        requests.push(fetch(`${apiUrl}/api/users`));
-        requestNames.push('users');
-        requests.push(fetch(`${apiUrl}/api/subscribers`));
-        requestNames.push('subscribers');
-      }
-
-      if (requests.length > 0) {
-        const responses = await Promise.all(requests);
-        
-        for (let i = 0; i < responses.length; i++) {
-          if (responses[i].ok) {
-            const data = await responses[i].json();
-            switch (requestNames[i]) {
-              case 'users':
-                setUsers(data);
-                break;
-              case 'subscribers':
-                setSubscribers(data);
-                break;
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching protected data:', error);
-    }
-  };
-
+  // Dark mode effect
   useEffect(() => {
-    // Fetch public data for all users
-    fetchPublicData();
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      setDarkMode(true);
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
   }, []);
 
+  // Toggle dark mode
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    if (newMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('theme', 'light');
+    }
+  };
+
+  // Fetch data from backend
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+
+      // Always fetch public data
+      const [domainsRes, newsRes] = await Promise.all([
+        fetch(`${apiUrl}/api/domains`, { credentials: 'include' }),
+        fetch(`${apiUrl}/api/news`, { credentials: 'include' })
+      ]);
+
+      if (domainsRes.ok) setDomains(await domainsRes.json());
+      if (newsRes.ok) setNews(await newsRes.json());
+
+      // Try to fetch protected data (will fail if not admin, which is fine)
+      try {
+        const [usersRes, subscribersRes] = await Promise.all([
+          fetch(`${apiUrl}/api/users`, { credentials: 'include' }),
+          fetch(`${apiUrl}/api/subscribers`, { credentials: 'include' })
+        ]);
+
+        if (usersRes.ok) setUsers(await usersRes.json());
+        if (subscribersRes.ok) setSubscribers(await subscribersRes.json());
+      } catch (e) {
+        // Ignore errors for protected routes when not logged in
+      }
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      showNotification('Failed to load data', 'error');
+    } finally {
+      setTimeout(() => setIsLoading(false), 500);
+    }
+  };
+
   useEffect(() => {
-    // Fetch protected data only for authenticated users
-    fetchProtectedData();
-  }, [currentUser]);
+    fetchData();
+  }, []);
 
   // Show notification
   const showNotification = (message, type = 'info') => {
@@ -106,30 +117,25 @@ const App = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      // Use environment variable for API base URL, fallback to localhost if not set
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
       const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include cookies in the request
-        body: JSON.stringify(loginForm),
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(loginForm)
       });
 
       if (response.ok) {
-        const userData = await response.json();
-        setCurrentUser(userData.user);
-        setCurrentView(userData.user.role === 'admin' ? 'admin' : 'contributor');
+        const data = await response.json();
+        const user = data.user;
+        setCurrentUser(user);
+        setCurrentView(user.role === 'admin' ? 'admin' : 'contributor');
         setShowLogin(false);
-        showNotification(`Welcome back, ${userData.user.username}!`);
-        
-        // Fetch protected data after successful login
-        fetchProtectedData();
+        showNotification(`Welcome back, ${user.username}!`, 'success');
+        setLoginForm({ email: '', password: '' });
       } else {
-        const errorData = await response.json();
-        showNotification(errorData.error || 'Invalid credentials', 'error');
+        const error = await response.json();
+        showNotification(error.error || 'Login failed', 'error');
       }
     } catch (error) {
       showNotification('Login failed', 'error');
@@ -139,34 +145,32 @@ const App = () => {
   // Handle logout
   const handleLogout = async () => {
     try {
-      // Use environment variable for API base URL, fallback to localhost if not set
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
       await fetch(`${apiUrl}/api/auth/logout`, {
         method: 'POST',
-        credentials: 'include', // Include cookies in the request
+        credentials: 'include'
       });
+      setCurrentUser(null);
+      setCurrentView('public');
+      setFilterDomain('all');
+      showNotification('Logged out successfully', 'info');
     } catch (error) {
       console.error('Logout error:', error);
     }
-    
-    setCurrentUser(null);
-    setCurrentView('public');
-    setUsers([]);
-    setSubscribers([]);
-    setFilterDomain('all');
-    showNotification('You have been logged out');
   };
 
-  // Filter news based on search term
+  // Filter news
   const filteredNews = news.filter(item =>
     item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.author.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Filter news by domain for contributors
-  const contributorNews = currentUser && currentUser.role === 'contributor' 
+  const domainFilteredNews = filterDomain === 'all'
+    ? filteredNews
+    : filteredNews.filter(n => n.domain === filterDomain);
+
+  const contributorNews = currentUser && currentUser.role === 'contributor'
     ? news.filter(item => item.domain === currentUser.domain)
     : [];
 
@@ -174,27 +178,24 @@ const App = () => {
   const handleAddNews = async (e) => {
     e.preventDefault();
     try {
-      // Use environment variable for API base URL, fallback to localhost if not set
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
+
       const response = await fetch(`${apiUrl}/api/news`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ...newNews,
           author: currentUser.username,
-          domain: currentUser.role === 'admin' ? newNews.domain : currentUser.domain
-        }),
+          domain: currentUser.role === 'contributor' ? currentUser.domain : newNews.domain
+        })
       });
 
       if (response.ok) {
-        const addedNews = await response.json();
-        setNews([addedNews, ...news]);
         setNewNews({ title: '', content: '', domain: '' });
         setShowAddNews(false);
-        showNotification('News added successfully');
+        showNotification('News added successfully', 'success');
+        fetchData();
       } else {
         showNotification('Failed to add news', 'error');
       }
@@ -206,19 +207,15 @@ const App = () => {
   // Handle deleting news
   const handleDeleteNews = async (id) => {
     try {
-      // Use environment variable for API base URL, fallback to localhost if not set
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
       const response = await fetch(`${apiUrl}/api/news/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include'
       });
 
       if (response.ok) {
         setNews(news.filter(item => item.id !== id));
-        showNotification('News deleted successfully');
+        showNotification('News deleted successfully', 'success');
       } else {
         showNotification('Failed to delete news', 'error');
       }
@@ -231,23 +228,19 @@ const App = () => {
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
-      // Use environment variable for API base URL, fallback to localhost if not set
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
       const response = await fetch(`${apiUrl}/api/users`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newUser),
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(newUser)
       });
 
       if (response.ok) {
-        const addedUser = await response.json();
-        setUsers([...users, addedUser]);
         setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
         setShowAddUser(false);
-        showNotification('User added successfully');
+        showNotification('User added successfully', 'success');
+        fetchData();
       } else {
         showNotification('Failed to add user', 'error');
       }
@@ -259,19 +252,15 @@ const App = () => {
   // Handle deleting user
   const handleDeleteUser = async (id) => {
     try {
-      // Use environment variable for API base URL, fallback to localhost if not set
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
       const response = await fetch(`${apiUrl}/api/users/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include'
       });
 
       if (response.ok) {
         setUsers(users.filter(user => user.id !== id));
-        showNotification('User deleted successfully');
+        showNotification('User deleted successfully', 'success');
       } else {
         showNotification('Failed to delete user', 'error');
       }
@@ -284,23 +273,19 @@ const App = () => {
   const handleAddDomain = async (e) => {
     e.preventDefault();
     try {
-      // Use environment variable for API base URL, fallback to localhost if not set
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
       const response = await fetch(`${apiUrl}/api/domains`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newDomain),
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(newDomain)
       });
 
       if (response.ok) {
-        const addedDomain = await response.json();
-        setDomains([...domains, addedDomain]);
-        setNewDomain({ name: '', color: 'bg-blue-500' });
+        setNewDomain({ name: '', color: '#3b82f6' });
         setShowAddDomain(false);
-        showNotification('Domain added successfully');
+        showNotification('Domain added successfully', 'success');
+        fetchData();
       } else {
         showNotification('Failed to add domain', 'error');
       }
@@ -312,20 +297,16 @@ const App = () => {
   // Handle deleting domain
   const handleDeleteDomain = async (id) => {
     try {
-      // Use environment variable for API base URL, fallback to localhost if not set
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-      
       const response = await fetch(`${apiUrl}/api/domains/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include'
       });
 
       if (response.ok) {
         setDomains(domains.filter(domain => domain.id !== id));
-        showNotification('Domain deleted successfully');
-        fetchData(); // Refresh data
+        showNotification('Domain deleted successfully', 'success');
+        fetchData();
       } else {
         showNotification('Failed to delete domain', 'error');
       }
@@ -334,625 +315,743 @@ const App = () => {
     }
   };
 
-  // Filter news by domain
-  const domainFilteredNews = filterDomain === 'all' 
-    ? filteredNews 
-    : filteredNews.filter(n => n.domain === filterDomain);
+  // Calculate reading time
+  const calculateReadingTime = (content) => {
+    const wordsPerMinute = 200;
+    const words = content.split(' ').length;
+    const minutes = Math.ceil(words / wordsPerMinute);
+    return minutes;
+  };
+
+  // Check if article is new (within last 7 days)
+  const isNewArticle = (date) => {
+    const articleDate = new Date(date);
+    const now = new Date();
+    const diffTime = Math.abs(now - articleDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 7;
+  };
 
   // Get domain color
   const getDomainColor = (domainName) => {
     const domain = domains.find(d => d.name === domainName);
-    return domain ? domain.color : 'bg-gray-500';
+    return domain?.color || domainColors[domainName] || '#3b82f6';
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Notification */}
-      {notification && (
-        <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-          notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
-        }`}>
-          {notification.message}
+  // Skeleton Loading Component
+  const SkeletonCard = () => (
+    <div className="card">
+      <div className="skeleton skeleton-title"></div>
+      <div className="skeleton skeleton-text"></div>
+      <div className="skeleton skeleton-text" style={{ width: '80%' }}></div>
+      <div className="skeleton skeleton-text" style={{ width: '60%' }}></div>
+    </div>
+  );
+
+  // Public View Component
+  const PublicView = () => (
+    <div className="animate-fadeIn">
+      {/* Search Bar */}
+      <div className="search-container" style={{ marginBottom: 'var(--spacing-8)' }}>
+        <Search className="search-icon" size={20} />
+        <input
+          type="text"
+          placeholder="Search articles by title, content, or author..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
+        />
+      </div>
+
+      {/* Domain Filters */}
+      <div className="filter-chips">
+        <button
+          onClick={() => setFilterDomain('all')}
+          className={`filter-chip ${filterDomain === 'all' ? 'active' : ''}`}
+        >
+          All News
+        </button>
+        {domains.map(domain => (
+          <button
+            key={domain.id}
+            onClick={() => setFilterDomain(domain.name)}
+            className={`filter-chip ${filterDomain === domain.name ? 'active' : ''}`}
+            style={filterDomain === domain.name ? {
+              backgroundColor: getDomainColor(domain.name),
+              borderColor: getDomainColor(domain.name),
+              color: 'white'
+            } : {}}
+          >
+            {domain.name}
+          </button>
+        ))}
+      </div>
+
+      {/* News Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-2">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
-      )}
-
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Alenia Pulse</h1>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {currentUser ? (
-                <>
-                  <span className="text-sm text-gray-700">
-                    Welcome, {currentUser.username} ({currentUser.role})
-                  </span>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center space-x-1 text-sm text-gray-700 hover:text-gray-900"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Logout</span>
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setShowLogin(true)}
-                  className="flex items-center space-x-1 text-sm text-gray-700 hover:text-gray-900"
-                >
-                  <LogIn className="h-4 w-4" />
-                  <span>Login</span>
-                </button>
-              )}
-            </div>
+      ) : domainFilteredNews.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <Newspaper size={40} />
           </div>
+          <h3 className="empty-state-title">No articles found</h3>
+          <p className="empty-state-text">
+            {searchTerm ? 'Try adjusting your search terms' : 'No articles available yet'}
+          </p>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* View Switcher */}
-        {currentUser && (
-          <div className="mb-8 flex justify-center">
-            <div className="flex bg-gray-100 p-1 rounded-lg">
-              <button
-                onClick={() => setCurrentView('public')}
-                className={`px-4 py-2 rounded-md ${
-                  currentView === 'public' 
-                    ? 'bg-white shadow-sm text-blue-600' 
-                    : 'text-gray-700 hover:text-gray-900'
-                }`}
-              >
-                Public View
-              </button>
-              {currentUser.role === 'contributor' && (
-                <button
-                  onClick={() => setCurrentView('contributor')}
-                  className={`px-4 py-2 rounded-md ${
-                    currentView === 'contributor' 
-                      ? 'bg-white shadow-sm text-green-600' 
-                      : 'text-gray-700 hover:text-gray-900'
-                  }`}
-                >
-                  Contributor View
-                </button>
-              )}
-              {currentUser.role === 'admin' && (
-                <button
-                  onClick={() => setCurrentView('admin')}
-                  className={`px-4 py-2 rounded-md ${
-                    currentView === 'admin' 
-                      ? 'bg-white shadow-sm text-purple-600' 
-                      : 'text-gray-700 hover:text-gray-900'
-                  }`}
-                >
-                  Admin Panel
-                </button>
-              )}
+      ) : (
+        <>
+          {/* Articles Counter */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 'var(--spacing-4)',
+            padding: 'var(--spacing-3) var(--spacing-4)',
+            backgroundColor: 'var(--bg-primary)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-color)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)' }}>
+              <Newspaper size={18} style={{ color: 'var(--primary-600)' }} />
+              <span style={{
+                fontSize: 'var(--font-size-sm)',
+                fontWeight: 'var(--font-weight-medium)',
+                color: 'var(--text-primary)'
+              }}>
+                {domainFilteredNews.length} article{domainFilteredNews.length > 1 ? 's' : ''}
+                {filterDomain !== 'all' && ` in ${filterDomain}`}
+                {searchTerm && ` matching "${searchTerm}"`}
+              </span>
             </div>
-          </div>
-        )}
-
-        {/* Public View */}
-        {(currentView === 'public' || !currentUser) && (
-          <div>
-            {/* Search Bar */}
-            <div className="mb-8">
-              <div className="relative max-w-2xl mx-auto">
-                <input
-                  type="text"
-                  placeholder="Search articles..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
-                />
-                <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
-              </div>
-            </div>
-
-            {/* Domain Filters */}
-            <div className="mb-6 flex gap-2 flex-wrap justify-center">
-              <button
-                onClick={() => setFilterDomain('all')}
-                className={`px-4 py-2 rounded-full transition ${
-                  filterDomain === 'all' 
-                    ? 'bg-gray-800 text-white' 
-                    : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'
-                }`}
-              >
-                All News
-              </button>
-              {domains.map(domain => (
-                <button
-                  key={domain.id}
-                  onClick={() => setFilterDomain(domain.name)}
-                  className={`px-4 py-2 rounded-full transition ${
-                    filterDomain === domain.name 
-                      ? `${domain.color} text-white` 
-                      : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'
-                  }`}
-                >
-                  {domain.name}
-                </button>
-              ))}
-            </div>
-
-            {/* News Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {domainFilteredNews.map(item => (
-                <div key={item.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                  <div className={`${getDomainColor(item.domain)} h-2 w-full`}></div>
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white ${getDomainColor(item.domain)}`}>
-                        {item.domain}
-                      </span>
-                      <span className="text-xs text-gray-500">{item.date}</span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
-                    <p className="text-gray-600 mb-4 line-clamp-3">{item.content}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">By {item.author}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Contributor View */}
-        {currentView === 'contributor' && currentUser && currentUser.role === 'contributor' && (
-          <div>
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Your News</h2>
-              <button
-                onClick={() => setShowAddNews(true)}
-                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add News</span>
-              </button>
-            </div>
-
-            {/* News Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {contributorNews.map(item => (
-                <div key={item.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                  <div className={`${getDomainColor(item.domain)} h-2 w-full`}></div>
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white ${getDomainColor(item.domain)}`}>
-                        {item.domain}
-                      </span>
-                      <span className="text-xs text-gray-500">{item.date}</span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
-                    <p className="text-gray-600 mb-4 line-clamp-3">{item.content}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">By {item.author}</span>
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleDeleteNews(item.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Admin View */}
-        {currentView === 'admin' && currentUser && currentUser.role === 'admin' && (
-          <div>
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
-              <button
-                onClick={() => setShowAdminPanel(!showAdminPanel)}
-                className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition"
-              >
-                <Settings className="h-4 w-4" />
-                <span>{showAdminPanel ? 'Hide' : 'Show'} Admin Panel</span>
-              </button>
-            </div>
-
-            {showAdminPanel && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-xl shadow-md">
-                  <div className="flex items-center">
-                    <Newspaper className="h-8 w-8 text-blue-500 mr-3" />
-                    <div>
-                      <p className="text-2xl font-bold">{news.length}</p>
-                      <p className="text-gray-600">Total News</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-md">
-                  <div className="flex items-center">
-                    <Users className="h-8 w-8 text-green-500 mr-3" />
-                    <div>
-                      <p className="text-2xl font-bold">{users.length}</p>
-                      <p className="text-gray-600">Total Users</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-md">
-                  <div className="flex items-center">
-                    <Mail className="h-8 w-8 text-purple-500 mr-3" />
-                    <div>
-                      <p className="text-2xl font-bold">{subscribers.length}</p>
-                      <p className="text-gray-600">Subscribers</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            {domainFilteredNews.length > 4 && (
+              <span style={{
+                fontSize: 'var(--font-size-xs)',
+                color: 'var(--text-tertiary)',
+                fontStyle: 'italic'
+              }}>
+                Scroll down to see more
+              </span>
             )}
+          </div>
 
-            {/* Admin Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <button
-                onClick={() => setShowAddNews(true)}
-                className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-md hover:shadow-lg transition"
-              >
-                <Plus className="h-8 w-8 text-blue-500 mb-2" />
-                <span className="font-medium">Add News</span>
+          <div className="grid grid-cols-2">
+            {domainFilteredNews.map(item => (
+              <div key={item.id} className="card-article">
+                <div className="card-article-content">
+                  <div className="card-article-header">
+                    <span
+                      className="badge"
+                      style={{
+                        backgroundColor: getDomainColor(item.domain) + '20',
+                        color: getDomainColor(item.domain)
+                      }}
+                    >
+                      {item.domain}
+                    </span>
+                    {isNewArticle(item.date) && (
+                      <span className="badge badge-success">New</span>
+                    )}
+                  </div>
+
+                  <h3 className="card-article-title">{item.title}</h3>
+                  <p className="card-article-text">{item.content}</p>
+
+                  <div className="card-article-footer">
+                    <div className="flex items-center gap-2">
+                      <User size={14} />
+                      <span>{item.author}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} />
+                      <span>{new Date(item.date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>{calculateReadingTime(item.content)} min read</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // Contributor View Component
+  const ContributorView = () => (
+    <div className="animate-fadeIn">
+      <div className="section-header">
+        <h2 className="section-title">Manage Your Articles</h2>
+        <button
+          onClick={() => setShowAddNews(!showAddNews)}
+          className="btn btn-success"
+        >
+          <Plus size={20} />
+          Add Article
+        </button>
+      </div>
+
+      {/* Add News Form */}
+      {showAddNews && (
+        <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
+          <h3 style={{ marginBottom: 'var(--spacing-4)' }}>New Article</h3>
+          <form onSubmit={handleAddNews}>
+            <div className="form-group">
+              <label className="form-label">Title</label>
+              <input
+                type="text"
+                placeholder="Enter article title"
+                value={newNews.title}
+                onChange={(e) => setNewNews({ ...newNews, title: e.target.value })}
+                className="form-input"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Content</label>
+              <textarea
+                placeholder="Write your article content..."
+                value={newNews.content}
+                onChange={(e) => setNewNews({ ...newNews, content: e.target.value })}
+                className="form-textarea"
+                required
+              />
+            </div>
+            <div className="flex gap-3">
+              <button type="submit" className="btn btn-success">
+                Publish Article
               </button>
               <button
-                onClick={() => setShowAddUser(true)}
-                className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-md hover:shadow-lg transition"
+                type="button"
+                onClick={() => setShowAddNews(false)}
+                className="btn btn-outline"
               >
-                <User className="h-8 w-8 text-green-500 mb-2" />
-                <span className="font-medium">Add User</span>
-              </button>
-              <button
-                onClick={() => setShowAddDomain(true)}
-                className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-md hover:shadow-lg transition"
-              >
-                <Tag className="h-8 w-8 text-purple-500 mb-2" />
-                <span className="font-medium">Add Domain</span>
+                Cancel
               </button>
             </div>
+          </form>
+        </div>
+      )}
 
-            {/* News Table */}
-            <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">All News</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {news.map(item => (
-                      <tr key={item.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{item.title}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full text-white ${getDomainColor(item.domain)}`}>
-                            {item.domain}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.author}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.date}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => handleDeleteNews(item.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {/* Articles List */}
+      {contributorNews.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <Newspaper size={40} />
+          </div>
+          <h3 className="empty-state-title">No articles yet</h3>
+          <p className="empty-state-text">Start by creating your first article</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1">
+          {contributorNews.map(item => (
+            <div key={item.id} className="card">
+              <div className="flex items-start justify-between gap-4">
+                <div style={{ flex: 1 }}>
+                  <div className="flex items-center gap-3" style={{ marginBottom: 'var(--spacing-2)' }}>
+                    <span
+                      className="badge"
+                      style={{
+                        backgroundColor: getDomainColor(item.domain) + '20',
+                        color: getDomainColor(item.domain)
+                      }}
+                    >
+                      {item.domain}
+                    </span>
+                    <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                      {new Date(item.date).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <h3 style={{ marginBottom: 'var(--spacing-2)' }}>{item.title}</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>{item.content}</p>
+                </div>
+                <button
+                  onClick={() => handleDeleteNews(item.id)}
+                  className="btn-icon"
+                  style={{ color: 'var(--error-600)' }}
+                >
+                  <Trash2 size={20} />
+                </button>
               </div>
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
-            {/* Users Table */}
-            <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Users</h3>
+  // Admin View Component
+  const AdminView = () => (
+    <div className="animate-fadeIn">
+      {/* Domains Management */}
+      <div style={{ marginBottom: 'var(--spacing-12)' }}>
+        <div className="section-header">
+          <h2 className="section-title">Manage Domains</h2>
+          <button
+            onClick={() => setShowAddDomain(!showAddDomain)}
+            className="btn btn-secondary"
+          >
+            <Plus size={20} />
+            Add Domain
+          </button>
+        </div>
+
+        {/* Add Domain Form */}
+        {showAddDomain && (
+          <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
+            <h3 style={{ marginBottom: 'var(--spacing-4)' }}>New Domain</h3>
+            <form onSubmit={handleAddDomain}>
+              <div className="form-group">
+                <label className="form-label">Domain Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Technology, Business"
+                  value={newDomain.name}
+                  onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })}
+                  className="form-input"
+                  required
+                />
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {users.map(user => (
-                      <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.username}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                            user.role === 'contributor' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.domain || '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="form-group">
+                <label className="form-label">Color</label>
+                <div className="flex gap-3 flex-wrap">
+                  {availableColors.map(color => (
+                    <button
+                      key={color.value}
+                      type="button"
+                      onClick={() => setNewDomain({ ...newDomain, color: color.value })}
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: 'var(--radius-lg)',
+                        backgroundColor: color.value,
+                        border: newDomain.color === color.value ? '4px solid var(--gray-800)' : '2px solid var(--border-color)',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)'
+                      }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+              <div className="flex gap-3">
+                <button type="submit" className="btn btn-secondary">
+                  Create Domain
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddDomain(false)}
+                  className="btn btn-outline"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         )}
-      </main>
 
-      {/* Login Modal */}
-      {showLogin && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
-            <form onSubmit={handleLogin}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                <input
-                  type="email"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <input
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowLogin(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Login
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add News Modal */}
-      {showAddNews && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6">Add News</h2>
-            <form onSubmit={handleAddNews}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-                <input
-                  type="text"
-                  value={newNews.title}
-                  onChange={(e) => setNewNews({...newNews, title: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              {currentUser && currentUser.role === 'admin' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Domain</label>
-                  <select
-                    value={newNews.domain}
-                    onChange={(e) => setNewNews({...newNews, domain: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
+        {/* Domains Grid */}
+        <div className="grid grid-cols-3">
+          {domains.map(domain => (
+            <div key={domain.id} className="card">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: 'var(--radius-lg)',
+                      backgroundColor: getDomainColor(domain.name),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontWeight: 'var(--font-weight-bold)',
+                      fontSize: 'var(--font-size-xl)'
+                    }}
                   >
-                    <option value="">Select a domain</option>
-                    {domains.map(domain => (
-                      <option key={domain.id} value={domain.name}>{domain.name}</option>
-                    ))}
-                  </select>
+                    {domain.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, marginBottom: 'var(--spacing-1)' }}>{domain.name}</h3>
+                    <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
+                      {news.filter(n => n.domain === domain.name).length} articles
+                    </p>
+                  </div>
                 </div>
-              )}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
-                <textarea
-                  value={newNews.content}
-                  onChange={(e) => setNewNews({...newNews, content: e.target.value})}
-                  rows={6}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="flex justify-end space-x-3">
                 <button
-                  type="button"
-                  onClick={() => setShowAddNews(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  onClick={() => handleDeleteDomain(domain.id)}
+                  className="btn-icon"
+                  style={{ color: 'var(--error-600)' }}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Add News
+                  <Trash2 size={20} />
                 </button>
               </div>
-            </form>
-          </div>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* Add User Modal */}
-      {showAddUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-6">Add User</h2>
+      {/* Users Management */}
+      <div style={{ marginBottom: 'var(--spacing-12)' }}>
+        <div className="section-header">
+          <h2 className="section-title">Manage Users</h2>
+          <button
+            onClick={() => setShowAddUser(!showAddUser)}
+            className="btn btn-success"
+          >
+            <Plus size={20} />
+            Add User
+          </button>
+        </div>
+
+        {/* Add User Form */}
+        {showAddUser && (
+          <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
+            <h3 style={{ marginBottom: 'var(--spacing-4)' }}>New User</h3>
             <form onSubmit={handleAddUser}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+              <div className="form-group">
+                <label className="form-label">Username</label>
                 <input
                   type="text"
+                  placeholder="Enter username"
                   value={newUser.username}
-                  onChange={(e) => setNewUser({...newUser, username: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                  className="form-input"
                   required
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <div className="form-group">
+                <label className="form-label">Email</label>
                 <input
                   type="email"
+                  placeholder="Enter email"
                   value={newUser.email}
-                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  className="form-input"
                   required
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <div className="form-group">
+                <label className="form-label">Password</label>
                 <input
                   type="password"
+                  placeholder="Enter password"
                   value={newUser.password}
-                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  className="form-input"
                   required
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+              <div className="form-group">
+                <label className="form-label">Role</label>
                 <select
                   value={newUser.role}
-                  onChange={(e) => setNewUser({...newUser, role: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                  className="form-select"
                 >
-                  <option value="user">User</option>
                   <option value="contributor">Contributor</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
               {newUser.role === 'contributor' && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Domain</label>
+                <div className="form-group">
+                  <label className="form-label">Domain</label>
                   <select
                     value={newUser.domain}
-                    onChange={(e) => setNewUser({...newUser, domain: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(e) => setNewUser({ ...newUser, domain: e.target.value })}
+                    className="form-select"
+                    required
                   >
-                    <option value="">Select a domain</option>
+                    <option value="">Select domain</option>
                     {domains.map(domain => (
                       <option key={domain.id} value={domain.name}>{domain.name}</option>
                     ))}
                   </select>
                 </div>
               )}
-              <div className="flex justify-end space-x-3">
+              <div className="flex gap-3">
+                <button type="submit" className="btn btn-success">
+                  Create User
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowAddUser(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  className="btn btn-outline"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Add User
-                </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Users Grid */}
+        <div className="grid grid-cols-3">
+          {users.map(user => (
+            <div key={user.id} className="card">
+              <div className="flex items-center gap-3" style={{ marginBottom: 'var(--spacing-4)' }}>
+                <div className="avatar">
+                  {user.username.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ margin: 0, marginBottom: 'var(--spacing-1)' }}>{user.username}</h3>
+                  <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-2">
+                  <span className={`badge ${user.role === 'admin' ? 'badge-secondary' : 'badge-primary'}`}>
+                    {user.role}
+                  </span>
+                  {user.domain && (
+                    <span className="badge badge-success">{user.domain}</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleDeleteUser(user.id)}
+                  className="btn-icon"
+                  style={{ color: 'var(--error-600)' }}
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* All News Management */}
+      <div>
+        <h2 className="section-title">All Articles</h2>
+        <div className="grid grid-cols-1">
+          {news.map(item => (
+            <div key={item.id} className="card">
+              <div className="flex items-start justify-between gap-4">
+                <div style={{ flex: 1 }}>
+                  <div className="flex items-center gap-3" style={{ marginBottom: 'var(--spacing-2)' }}>
+                    <span
+                      className="badge"
+                      style={{
+                        backgroundColor: getDomainColor(item.domain) + '20',
+                        color: getDomainColor(item.domain)
+                      }}
+                    >
+                      {item.domain}
+                    </span>
+                    <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                      {new Date(item.date).toLocaleDateString()}
+                    </span>
+                    <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                      by {item.author}
+                    </span>
+                  </div>
+                  <h3 style={{ marginBottom: 'var(--spacing-2)' }}>{item.title}</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>{item.content}</p>
+                </div>
+                <button
+                  onClick={() => handleDeleteNews(item.id)}
+                  className="btn-icon"
+                  style={{ color: 'var(--error-600)' }}
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="app-container">
+      {/* Header */}
+      <header className="header">
+        <div className="header-container">
+          <div className="header-brand">
+            <div className="header-logo" style={{ overflow: 'hidden', padding: 0 }}>
+              <img src="/alenia_logo.png" alt="Alenia Pulse" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+            <div>
+              <h1 className="header-title">Alenia Pulse</h1>
+              <p className="header-subtitle">Consulting & Connection</p>
+            </div>
+          </div>
+
+          <div className="header-actions">
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className="theme-toggle"
+              aria-label="Toggle dark mode"
+            >
+              <div className="theme-toggle-slider">
+                {darkMode ? <Moon className="theme-toggle-icon" /> : <Sun className="theme-toggle-icon" />}
+              </div>
+            </button>
+
+            {/* View Switcher for logged-in users */}
+            {currentUser && (
+              <div className="view-switcher">
+                <button
+                  onClick={() => setCurrentView('public')}
+                  className={`view-switcher-btn ${currentView === 'public' ? 'active' : ''}`}
+                >
+                  <Newspaper size={16} />
+                  <span>Public</span>
+                </button>
+                <button
+                  onClick={() => setCurrentView('contributor')}
+                  className={`view-switcher-btn ${currentView === 'contributor' ? 'active' : ''}`}
+                >
+                  <Mail size={16} />
+                  <span>Contributor</span>
+                </button>
+                {currentUser.role === 'admin' && (
+                  <button
+                    onClick={() => setCurrentView('admin')}
+                    className={`view-switcher-btn ${currentView === 'admin' ? 'active' : ''}`}
+                  >
+                    <User size={16} />
+                    <span>Admin</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* User Menu */}
+            {currentUser ? (
+              <div className="flex items-center gap-3">
+                <div className="avatar avatar-sm">
+                  {currentUser.username.charAt(0).toUpperCase()}
+                </div>
+                <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)', display: 'none' }} className="md-inline">
+                  {currentUser.username}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="btn btn-ghost btn-sm"
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowLogin(true)}
+                className="btn btn-primary"
+              >
+                <User size={16} />
+                Login
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="main-content">
+        {currentView === 'public' && <PublicView />}
+        {currentView === 'contributor' && <ContributorView />}
+        {currentView === 'admin' && <AdminView />}
+      </main>
+
+      {/* Footer */}
+      <footer className="footer">
+        <div className="footer-container">
+          <div className="footer-section">
+            <h4>About</h4>
+            <p>Company Newsletter - Your source for internal news and updates across all departments.</p>
+          </div>
+          <div className="footer-section">
+            <h4>Quick Links</h4>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+            <a href="#">Contact Us</a>
+          </div>
+          <div className="footer-section">
+            <h4>Connect</h4>
+            <p>Stay connected with your team and never miss an update.</p>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <p>&copy; {new Date().getFullYear()} Company Newsletter. All rights reserved.</p>
+        </div>
+      </footer>
+
+      {/* Login Modal */}
+      {showLogin && (
+        <div className="modal-backdrop" onClick={() => setShowLogin(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-icon">
+                <User size={32} />
+              </div>
+              <h2 className="modal-title">Welcome Back</h2>
+              <p className="modal-subtitle">Sign in to your account</p>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleLogin}>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    value={loginForm.email}
+                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                    className="form-input"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Password</label>
+                  <input
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    className="form-input"
+                    placeholder="Enter your password"
+                    required
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowLogin(false)}
+                    className="btn btn-outline"
+                    style={{ flex: 1 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ flex: 1 }}
+                  >
+                    Sign In
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Add Domain Modal */}
-      {showAddDomain && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-6">Add Domain</h2>
-            <form onSubmit={handleAddDomain}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Domain Name</label>
-                <input
-                  type="text"
-                  value={newDomain.name}
-                  onChange={(e) => setNewDomain({...newDomain, name: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {colors.map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setNewDomain({...newDomain, color})}
-                      className={`h-10 rounded-lg ${color} ${
-                        newDomain.color === color ? 'ring-4 ring-gray-300' : ''
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddDomain(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                >
-                  Add Domain
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Notification Toast */}
+      {notification && (
+        <div className={`notification notification-${notification.type}`}>
+          {notification.message}
         </div>
       )}
     </div>
