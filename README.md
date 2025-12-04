@@ -1,95 +1,97 @@
 # Alenia Pulse
 
-**Consulting & Connection** - Application de newsletter interne sécurisée pour Alenia.
+**Consulting & Connection** - Secure internal newsletter platform for Alenia.
 
 ![Alenia Pulse Logo](public/alenia_logo.png)
 
 ## 🎯 Description
 
-Alenia Pulse est une plateforme de communication interne permettant aux consultants de rester connectés et informés. L'application offre :
+Alenia Pulse is an internal communication platform that keeps consultants connected and informed. The application offers:
 
-- **Gestion de contenu** par domaines (Hiring, Event, Journey, Communication, Admin)
-- **Authentification sécurisée** avec JWT et bcrypt
-- **Contrôle d'accès** basé sur les rôles (Admin, Contributeur, Utilisateur)
-- **Interface moderne** avec dark mode et animations fluides
+- **Content Management** by domains (Hiring, Event, Journey, Communication, Admin)
+- **Secure Authentication** with JWT and bcrypt
+- **Role-Based Access Control** (Admin, Contributor, User)
+- **Modern Interface** with responsive design and smooth animations
+- **Dockerized Deployment** for easy scaling and maintenance
 
-## 🚀 Démarrage Rapide
+## 🚀 Quick Start
 
-### Prérequis
+### Prerequisites
 
 - Node.js 20+
-- PostgreSQL 15+ (ou Docker)
-- npm ou yarn
+- PostgreSQL 15+ (or Docker)
+- npm or yarn
 
 ### Installation
 
 ```bash
-# Cloner le dépôt
+# Clone the repository
 git clone git@github.com:MBAlenia/ALENIA_Pulse.git
 cd ALENIA_Pulse
 
-# Installer les dépendances
+# Install dependencies
 npm install
 
-# Configurer les variables d'environnement
+# Configure environment variables
 cp .env.example .env
-# Éditer .env avec vos valeurs
+# Edit .env with your values
 
-# Démarrer la base de données (Docker)
+# Start the database (Docker)
 docker-compose up -d db
 
-# Créer la base de données
+# Create the database
 node create-db.js
 
-# Peupler avec des données de test
+# Seed with sample data
 node seed-database.js
 
-# Migrer les mots de passe (si nécessaire)
+# Migrate passwords (if needed)
 node migrate-passwords.js
 
-# Démarrer l'application
+# Start the application
 npm run start-secure
 ```
 
-L'application sera accessible sur :
-- Frontend : http://localhost:5174
-- Backend : http://localhost:3002
+The application will be accessible at:
+- Frontend: http://localhost:5174
+- Backend: http://localhost:3002
 
-## 🔐 Sécurité
+## 🔐 Security Features
 
-L'application implémente les meilleures pratiques de sécurité :
+The application implements industry-standard security practices:
 
-- ✅ **Authentification JWT** avec tokens d'accès et de rafraîchissement
-- ✅ **Hachage bcrypt** des mots de passe (10 rounds)
-- ✅ **Cookies httpOnly** pour stocker les tokens
-- ✅ **Rate limiting** (5 tentatives de login / 15 min)
-- ✅ **Validation des entrées** avec express-validator
-- ✅ **Headers de sécurité** avec Helmet
-- ✅ **CORS** configuré pour les origines autorisées
+- ✅ **JWT Authentication** with access and refresh tokens
+- ✅ **bcrypt Password Hashing** (10 rounds)
+- ✅ **HttpOnly Cookies** for token storage
+- ✅ **Rate Limiting** (5 login attempts / 15 min)
+- ✅ **Input Validation** with express-validator
+- ✅ **Security Headers** with Helmet
+- ✅ **CORS** configured for authorized origins
+- ✅ **Role-Based Access Control** for API endpoints
 
-## 👥 Identifiants de Test
+## 👥 Test Credentials
 
-| Rôle | Email | Mot de passe |
-|------|-------|--------------|
+| Role | Email | Password |
+|------|-------|----------|
 | Admin | admin@company.com | admin123 |
 | Hiring | hiring@company.com | hiring123 |
-| Event | events@company.com | event123 |
+| Events | events@company.com | event123 |
 
-## 🐳 Déploiement en Production
+## 🐳 Production Deployment
 
 ```bash
-# Construire et déployer avec Docker Compose
+# Build and deploy with Docker Compose
 docker-compose -f docker-compose-prod.yml up -d --build
 ```
 
-L'application sera accessible sur :
-- Frontend : https://pulse.academy.alenia.io
-- Backend API : https://pulse-api.academy.alenia.io
-- PgAdmin : https://pgadmin.pulse.academy.alenia.io
+The application will be accessible at:
+- Frontend: https://pulse.academy.alenia.io
+- Backend API: https://pulse-api.academy.alenia.io
+- PgAdmin: https://pgadmin.pulse.academy.alenia.io
 
-### Variables d'Environnement de Production
+### Production Environment Variables
 
-Créer un fichier `.env` avec :
+Create a `.env` file with:
 
 ```env
 # Database
@@ -97,7 +99,7 @@ POSTGRES_USER_PROD=your_db_user
 POSTGRES_PASSWORD_PROD=your_db_password
 POSTGRES_DB_PROD=newsletter
 
-# JWT Secrets (générer avec: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+# JWT Secrets (generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
 JWT_SECRET_PROD=your_jwt_secret_here
 JWT_REFRESH_SECRET_PROD=your_refresh_secret_here
 
@@ -105,36 +107,111 @@ JWT_REFRESH_SECRET_PROD=your_refresh_secret_here
 PGADMIN_PASSWORD_PROD=your_pgadmin_password
 ```
 
-## 📁 Structure du Projet
+## 🏗️ Architecture
+
+### Frontend
+- **Framework**: React 19 with Hooks
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS with custom components
+- **Icons**: Lucide React
+- **State Management**: React built-in useState/useEffect
+
+### Backend
+- **Runtime**: Node.js
+- **Framework**: Express.js
+- **Database**: PostgreSQL with node-postgres
+- **Authentication**: JWT with refresh tokens
+- **Security**: Helmet, CORS, Rate Limiting
+- **Validation**: express-validator
+
+### Infrastructure
+- **Containerization**: Docker with multi-stage builds
+- **Orchestration**: Docker Compose
+- **Reverse Proxy**: Traefik (Production)
+- **Database Admin**: PgAdmin
+
+## 📁 Project Structure
 
 ```
 .
-├── src/                    # Code source frontend (React)
-│   ├── App.jsx            # Composant principal
+├── src/                    # Frontend source code (React)
+│   ├── App.jsx            # Main component
 │   ├── App.css            # Styles
-│   └── main.jsx           # Point d'entrée
-├── middleware/            # Middlewares backend
-│   ├── auth.js           # Authentification JWT
-│   └── validators.js     # Validation des données
-├── public/               # Assets statiques
-├── Dockerfile.backend    # Image Docker backend
-├── Dockerfile.frontend   # Image Docker frontend
-├── server-secure.js      # Serveur Express sécurisé
-├── seed-database.js      # Script de peuplement
-└── docker-compose-prod.yml # Configuration production
+│   └── main.jsx           # Entry point
+├── middleware/            # Backend middlewares
+│   ├── auth.js           # JWT authentication
+│   └── validators.js     # Data validation
+├── public/               # Static assets
+├── Dockerfile.backend    # Backend Docker image
+├── Dockerfile.frontend   # Frontend Docker image
+├── server-secure.js      # Secure Express server
+├── seed-database.js      # Sample data population
+├── create-db.js          # Database creation script
+├── migrate-passwords.js  # Password migration utility
+└── docker-compose-prod.yml # Production configuration
+```
 
-## 🛠️ Technologies
+## 🛠️ Development Scripts
 
-- **Frontend** : React 19, Vite, Lucide Icons
-- **Backend** : Node.js, Express, PostgreSQL
-- **Sécurité** : JWT, bcrypt, Helmet, express-validator
-- **Déploiement** : Docker, Traefik
+- `npm run dev` - Start frontend development server
+- `npm run build` - Build frontend for production
+- `npm run server` - Start backend server
+- `npm run server-secure` - Start secure backend server
+- `npm run start` - Start both frontend and backend
+- `npm run start-secure` - Start both frontend and secure backend
 
-## 📝 Licence
+## 🔄 API Endpoints
 
-Propriété d'Alenia - Tous droits réservés
+### Authentication
+- `POST /api/auth/login` - User login
+- `POST /api/auth/refresh` - Refresh access token
+- `POST /api/auth/logout` - User logout
 
-## 👨‍💻 Auteur
+### Domains
+- `GET /api/domains` - Get all domains
+- `POST /api/domains` - Create new domain (Admin only)
+- `DELETE /api/domains/:id` - Delete domain (Admin only)
+
+### News
+- `GET /api/news` - Get all news
+- `POST /api/news` - Create news (Contributor/Admin)
+- `DELETE /api/news/:id` - Delete news (Owner/Admin)
+- `GET /api/news/search?q=query` - Search news
+
+### Users
+- `GET /api/users` - Get all users (Admin only)
+- `POST /api/users` - Create user (Admin only)
+- `PUT /api/users/:id` - Update user (Admin only)
+- `DELETE /api/users/:id` - Delete user (Admin only)
+
+### Subscribers
+- `GET /api/subscribers` - Get all subscribers (Admin only)
+
+## 📝 License
+
+Property of Alenia - All rights reserved
+
+## 👨‍💻 Author
 
 Michel Barnabot - michel.barnabot@alenia.io
-```
+
+## 📋 Changelog
+
+### v1.2.0 - Latest Release
+- Enhanced UI/UX with modern design
+- Improved security with JWT refresh tokens
+- Dockerized deployment with Traefik integration
+- Role-based access control implementation
+- Input validation and sanitization
+- Rate limiting for brute-force protection
+
+### v1.1.0
+- Initial secure implementation with JWT authentication
+- Database schema with domains, news, users, and subscribers
+- Basic CRUD operations for all entities
+- Docker configuration for development and production
+
+### v1.0.0
+- Initial release with basic newsletter functionality
+- Simple authentication system
+- Monolithic architecture
