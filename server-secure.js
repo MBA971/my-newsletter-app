@@ -567,6 +567,11 @@ app.get('/', (req, res) => {
     });
 });
 
+// Favicon route to prevent 404 errors in browser console
+app.get('/favicon.ico', (req, res) => {
+    res.status(204).end();
+});
+
 // ============================================
 // SERVER STARTUP
 // ============================================
