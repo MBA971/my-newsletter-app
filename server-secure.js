@@ -26,6 +26,8 @@ import {
 dotenv.config();
 
 const app = express();
+// Configure trust proxy for rate limiting when behind reverse proxy (Traefik)
+app.set('trust proxy', 1);
 let port = process.env.PORT || 3002;
 
 // Security Middleware
