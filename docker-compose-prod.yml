@@ -22,9 +22,10 @@ services:
     depends_on:
       - postgres
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/newsletter
+      DATABASE_URL: postgresql://${POSTGRES_USER_PROD}:${POSTGRES_PASSWORD_PROD}@postgres:5432/${POSTGRES_DB_PROD}?sslmode=disable
       PORT: 3002
       NODE_ENV: production
+      # Database connection variables that the backend code expects
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${POSTGRES_USER_PROD}
@@ -40,6 +41,7 @@ services:
       ALLOWED_ORIGINS: https://pulse.academy.alenia.io
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
+    
     networks:
       - app-network
     labels:
@@ -66,6 +68,7 @@ services:
       - LC_ALL=C.UTF-8
     networks:
       - app-network
+    
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.pulse.rule=Host(`pulse.academy.alenia.io`)"
@@ -74,7 +77,7 @@ services:
       - "traefik.http.routers.pulse.service=svc_pulse"
       - "traefik.http.services.svc_pulse.loadbalancer.server.port=80"
       - "traefik.http.services.svc_pulse.loadbalancer.passhostheader=true"
-
+      
   pgadmin:
     image: dpage/pgadmin4:9.8
     container_name: pulse-pgadmin
@@ -95,7 +98,7 @@ services:
       - "traefik.http.routers.pgadmin_pulse.tls.certresolver=myresolver"
       - "traefik.http.routers.pgadmin_pulse.service=svc_pgadmin_pulse"
       - "traefik.http.services.svc_pgadmin_pulse.loadbalancer.server.port=80"
-
+      
 networks:
   app-network:
     driver: bridge

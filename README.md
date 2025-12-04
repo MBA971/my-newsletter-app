@@ -26,7 +26,7 @@ Alenia Pulse is an internal communication platform that keeps consultants connec
 
 ```bash
 # Clone the repository
-git clone git@github.com:MBAlenia/ALENIA_Pulse.git
+git clone https://github.com/MBAlenia/ALENIA_Pulse.git
 cd ALENIA_Pulse
 
 # Install dependencies
@@ -105,7 +105,21 @@ JWT_REFRESH_SECRET_PROD=your_refresh_secret_here
 
 # PgAdmin
 PGADMIN_PASSWORD_PROD=your_pgadmin_password
+
+# Rate limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=5
+
+# Bcrypt
+BCRYPT_ROUNDS=10
+
+# URLs
+APP_URL=https://pulse.academy.alenia.io
+FRONTEND_URL=https://pulse.academy.alenia.io
+ALLOWED_ORIGINS=https://pulse.academy.alenia.io
 ```
+
+For a complete production environment template, see `.env.production.example`.
 
 ## 🏗️ Architecture
 
