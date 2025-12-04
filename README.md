@@ -145,6 +145,20 @@ ALLOWED_ORIGINS=https://pulse.academy.alenia.io
 
 For a complete production environment template, see `.env.production.example`.
 
+### Seeding Production Database
+
+If your production database doesn't have sample data, you can use the provided SQL script:
+
+1. Access PgAdmin at `https://pgadmin.pulse.academy.alenia.io`
+2. Connect to your PostgreSQL database
+3. Open and run the `pgadmin-seed-data.sql` script
+
+Alternatively, you can run the Node.js seed script:
+```bash
+# Inside the backend container
+docker-compose -f docker-compose-prod.yml exec backend node seed-database.js
+```
+
 ##  troubleshoot Troubleshooting
 
 ### Database Connection Issues
