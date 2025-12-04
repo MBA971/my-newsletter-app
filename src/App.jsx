@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, LogIn, LogOut, Plus, Edit, Trash2, Eye, Users, Settings, Globe, Lock, Calendar, Tag } from 'lucide-react';
+import { Search, User, LogIn, LogOut, Plus, Edit, Trash2, Eye, Users, Settings, Globe, Lock, Calendar, Tag, Mail, Newspaper } from 'lucide-react';
+import './App.css';
 
 const App = () => {
   const [domains, setDomains] = useState([]);
@@ -164,11 +165,6 @@ const App = () => {
     item.author.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Filter news by domain
-  const domainFilteredNews = filterDomain === 'all' 
-    ? filteredNews 
-    : filteredNews.filter(n => n.domain === filterDomain);
-
   // Filter news by domain for contributors
   const contributorNews = currentUser && currentUser.role === 'contributor' 
     ? news.filter(item => item.domain === currentUser.domain)
@@ -199,7 +195,6 @@ const App = () => {
         setNewNews({ title: '', content: '', domain: '' });
         setShowAddNews(false);
         showNotification('News added successfully');
-        fetchData(); // Refresh data
       } else {
         showNotification('Failed to add news', 'error');
       }
@@ -216,6 +211,9 @@ const App = () => {
       
       const response = await fetch(`${apiUrl}/api/news/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
       if (response.ok) {
@@ -229,7 +227,7 @@ const App = () => {
     }
   };
 
-  // Handle adding user (admin only)
+  // Handle adding user
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
@@ -250,7 +248,6 @@ const App = () => {
         setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
         setShowAddUser(false);
         showNotification('User added successfully');
-        fetchData(); // Refresh data
       } else {
         showNotification('Failed to add user', 'error');
       }
@@ -259,7 +256,7 @@ const App = () => {
     }
   };
 
-  // Handle deleting user (admin only)
+  // Handle deleting user
   const handleDeleteUser = async (id) => {
     try {
       // Use environment variable for API base URL, fallback to localhost if not set
@@ -267,6 +264,9 @@ const App = () => {
       
       const response = await fetch(`${apiUrl}/api/users/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
       if (response.ok) {
@@ -280,7 +280,7 @@ const App = () => {
     }
   };
 
-  // Handle adding domain (admin only)
+  // Handle adding domain
   const handleAddDomain = async (e) => {
     e.preventDefault();
     try {
@@ -301,7 +301,6 @@ const App = () => {
         setNewDomain({ name: '', color: 'bg-blue-500' });
         setShowAddDomain(false);
         showNotification('Domain added successfully');
-        fetchData(); // Refresh data
       } else {
         showNotification('Failed to add domain', 'error');
       }
@@ -310,7 +309,7 @@ const App = () => {
     }
   };
 
-  // Handle deleting domain (admin only)
+  // Handle deleting domain
   const handleDeleteDomain = async (id) => {
     try {
       // Use environment variable for API base URL, fallback to localhost if not set
@@ -318,6 +317,9 @@ const App = () => {
       
       const response = await fetch(`${apiUrl}/api/domains/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
       if (response.ok) {
@@ -332,511 +334,625 @@ const App = () => {
     }
   };
 
-  // Public view component
-  const PublicView = () => (
-    <div>
-      {/* Search Bar */}
-      <div className="mb-8">
-        <div className="relative max-w-2xl mx-auto">
-          <input
-            type="text"
-            placeholder="Search articles..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
-          />
-          <Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
-        </div>
-      </div>
+  // Filter news by domain
+  const domainFilteredNews = filterDomain === 'all' 
+    ? filteredNews 
+    : filteredNews.filter(n => n.domain === filterDomain);
 
-      {/* Filters */}
-      <div className="mb-6 flex gap-2 flex-wrap">
-        <button
-          onClick={() => setFilterDomain('all')}
-          className={`px-4 py-2 rounded-full transition ${filterDomain === 'all' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100 shadow-sm'}`}
-        >
-          All News
-        </button>
-        {domains.map(domain => (
-          <button
-            key={domain.id}
-            onClick={() => setFilterDomain(domain.name)}
-            className={`px-4 py-2 rounded-full transition ${filterDomain === domain.name ? `${domain.color} text-white` : 'bg-white text-slate-700 hover:bg-slate-100 shadow-sm'}`}
-          >
-            {domain.name}
-          </button>
-        ))}
-      </div>
-
-      {/* News Grid */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {domainFilteredNews.map(item => {
-          const domain = domains.find(d => d.name === item.domain);
-          return (
-            <div key={item.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition p-6">
-              <div className="flex items-start justify-between mb-3">
-                <span className={`${domain?.color || 'bg-slate-500'} text-white text-xs px-3 py-1 rounded-full font-medium`}>
-                  {item.domain}
-                </span>
-                <span className="text-xs text-slate-500 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  {new Date(item.date).toLocaleDateString()}
-                </span>
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">{item.title}</h3>
-              <p className="text-slate-600 mb-4">{item.content}</p>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <User className="w-4 h-4" />
-                {item.author}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  // Contributor view component
-  const ContributorView = () => (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Manage News</h2>
-        <button
-          onClick={() => setShowAddNews(!showAddNews)}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition shadow-sm"
-        >
-          <Plus className="w-5 h-5" />
-          Add News
-        </button>
-      </div>
-
-      {/* Add News Form */}
-      {showAddNews && (
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h3 className="font-bold text-lg mb-4">New Article</h3>
-          <div className="space-y-4">
-            <input
-              type="text"
-              placeholder="Title"
-              value={newNews.title}
-              onChange={(e) => setNewNews({...newNews, title: e.target.value})}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            />
-            <textarea
-              placeholder="Content"
-              value={newNews.content}
-              onChange={(e) => setNewNews({...newNews, content: e.target.value})}
-              className="w-full px-4 py-2 border rounded-lg h-32 focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleAddNews}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition"
-              >
-                Publish
-              </button>
-              <button
-                onClick={() => setShowAddNews(false)}
-                className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-2 rounded-lg transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* News List */}
-      <div className="space-y-4">
-        {contributorNews.map(item => {
-          const domain = domains.find(d => d.name === item.domain);
-          return (
-            <div key={item.id} className="bg-white rounded-xl shadow-sm p-6 flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={`${domain?.color || 'bg-slate-500'} text-white text-xs px-3 py-1 rounded-full`}>
-                    {item.domain}
-                  </span>
-                  <span className="text-sm text-slate-500">{new Date(item.date).toLocaleDateString()}</span>
-                </div>
-                <h3 className="font-bold text-lg text-slate-900">{item.title}</h3>
-                <p className="text-slate-600 text-sm mt-1">{item.content}</p>
-              </div>
-              <button
-                onClick={() => handleDeleteNews(item.id)}
-                className="ml-4 p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  // Admin view component
-  const AdminView = () => (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Manage Domains</h2>
-        <button
-          onClick={() => setShowAddDomain(!showAddDomain)}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition shadow-sm"
-        >
-          <Plus className="w-5 h-5" />
-          Add Domain
-        </button>
-      </div>
-
-      {/* Add Domain Form */}
-      {showAddDomain && (
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h3 className="font-bold text-lg mb-4">New Domain</h3>
-          <div className="space-y-4">
-            <input
-              type="text"
-              placeholder="Domain Name"
-              value={newDomain.name}
-              onChange={(e) => setNewDomain({...newDomain, name: e.target.value})}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Color</label>
-              <div className="flex gap-2">
-                {colors.map(color => (
-                  <button
-                    key={color}
-                    onClick={() => setNewDomain({...newDomain, color})}
-                    className={`w-10 h-10 rounded-lg ${color} ${newDomain.color === color ? 'ring-4 ring-slate-300' : ''}`}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleAddDomain}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition"
-              >
-                Create
-              </button>
-              <button
-                onClick={() => setShowAddDomain(false)}
-                className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-2 rounded-lg transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Domains Grid */}
-      <div className="grid md:grid-cols-3 gap-4 mb-8">
-        {domains.map(domain => (
-          <div key={domain.id} className="bg-white rounded-xl shadow-sm p-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 ${domain.color} rounded-lg`}></div>
-              <div>
-                <h3 className="font-bold text-slate-900">{domain.name}</h3>
-                <p className="text-sm text-slate-500">{news.filter(n => n.domain === domain.name).length} articles</p>
-              </div>
-            </div>
-            <button
-              onClick={() => handleDeleteDomain(domain.id)}
-              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Users Management */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-900">Manage Users</h2>
-          <button
-            onClick={() => setShowAddUser(!showAddUser)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition shadow-sm"
-          >
-            <Plus className="w-5 h-5" />
-            Add User
-          </button>
-        </div>
-
-        {/* Add User Form */}
-        {showAddUser && (
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h3 className="font-bold text-lg mb-4">New User</h3>
-            <form onSubmit={handleAddUser} className="space-y-4">
-              <input
-                type="text"
-                placeholder="Username"
-                value={newUser.username}
-                onChange={(e) => setNewUser({...newUser, username: e.target.value})}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                required
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={newUser.email}
-                onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                required
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={newUser.password}
-                onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                required
-              />
-              <select
-                value={newUser.role}
-                onChange={(e) => setNewUser({...newUser, role: e.target.value})}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="contributor">Contributor</option>
-                <option value="admin">Admin</option>
-              </select>
-              {newUser.role === 'contributor' && (
-                <select
-                  value={newUser.domain}
-                  onChange={(e) => setNewUser({...newUser, domain: e.target.value})}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                >
-                  <option value="">Select domain</option>
-                  {domains.map(domain => (
-                    <option key={domain.id} value={domain.name}>{domain.name}</option>
-                  ))}
-                </select>
-              )}
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition"
-                >
-                  Create User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddUser(false)}
-                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-2 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Users List */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {users.map(user => (
-            <div key={user.id} className="bg-white rounded-xl shadow-sm p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center">
-                  <User className="w-6 h-6 text-slate-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900">{user.username}</h3>
-                  <p className="text-sm text-slate-500">{user.email}</p>
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
-                }`}>
-                  {user.role}
-                </span>
-                {user.domain && (
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {user.domain}
-                  </span>
-                )}
-                <button
-                  onClick={() => handleDeleteUser(user.id)}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* News Management */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-6">Manage News</h2>
-        <div className="space-y-4">
-          {news.map(item => {
-            const domain = domains.find(d => d.name === item.domain);
-            return (
-              <div key={item.id} className="bg-white rounded-xl shadow-sm p-6 flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className={`${domain?.color || 'bg-slate-500'} text-white text-xs px-3 py-1 rounded-full`}>
-                      {item.domain}
-                    </span>
-                    <span className="text-sm text-slate-500">{new Date(item.date).toLocaleDateString()}</span>
-                  </div>
-                  <h3 className="font-bold text-lg text-slate-900">{item.title}</h3>
-                  <p className="text-slate-600 text-sm mt-1">{item.content}</p>
-                </div>
-                <button
-                  onClick={() => handleDeleteNews(item.id)}
-                  className="ml-4 p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+  // Get domain color
+  const getDomainColor = (domainName) => {
+    const domain = domains.find(d => d.name === domainName);
+    return domain ? domain.color : 'bg-gray-500';
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Company Newsletter</h1>
-              <p className="text-sm text-slate-500">Stay updated with all departments</p>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              {/* View Switcher for logged-in users */}
-              {currentUser && (
-                <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
-                  <button
-                    onClick={() => setCurrentView('public')}
-                    className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${currentView === 'public' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}
-                  >
-                    <Globe className="w-4 h-4" />
-                    Public View
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('contributor')}
-                    className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${currentView === 'contributor' ? 'bg-white shadow-sm text-green-600' : 'text-slate-600'}`}
-                  >
-                    <Edit className="w-4 h-4" />
-                    Contributor
-                  </button>
-                  {currentUser.role === 'admin' && (
-                    <button
-                      onClick={() => setCurrentView('admin')}
-                      className={`px-4 py-2 rounded-md flex items-center gap-2 transition ${currentView === 'admin' ? 'bg-white shadow-sm text-purple-600' : 'text-slate-600'}`}
-                    >
-                      <Lock className="w-4 h-4" />
-                      Admin
-                    </button>
-                  )}
-                </div>
-              )}
-              
-              {/* User Menu */}
-              <div className="flex items-center">
-                {currentUser ? (
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm font-medium text-slate-700 hidden md:inline">
-                      {currentUser.username}
-                    </span>
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg transition-colors duration-200"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span className="hidden sm:inline">Logout</span>
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowLogin(true)}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm"
-                  >
-                    <User className="h-4 w-4" />
-                    <span>Login</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {currentView === 'public' && <PublicView />}
-        {currentView === 'contributor' && <ContributorView />}
-        {currentView === 'admin' && <AdminView />}
-      </main>
-
-      {/* Login Modal */}
-      {showLogin && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-8 shadow-2xl">
-            <div className="text-center mb-6">
-              <div className="mx-auto bg-slate-100 rounded-full p-3 w-16 h-16 flex items-center justify-center mb-4">
-                <User className="h-8 w-8 text-slate-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900">Welcome Back</h2>
-              <p className="text-slate-600 mt-2">Sign in to your account</p>
-            </div>
-            <form onSubmit={handleLogin}>
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
-                <input
-                  type="email"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
-                <input
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowLogin(false)}
-                  className="flex-1 px-4 py-3 text-slate-700 hover:text-slate-900 font-medium rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm"
-                >
-                  Sign In
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+    <div className="min-h-screen bg-gray-50">
       {/* Notification */}
       {notification && (
         <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
           notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
         }`}>
           {notification.message}
+        </div>
+      )}
+
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-gray-900">Alenia Pulse</h1>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {currentUser ? (
+                <>
+                  <span className="text-sm text-gray-700">
+                    Welcome, {currentUser.username} ({currentUser.role})
+                  </span>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-1 text-sm text-gray-700 hover:text-gray-900"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Logout</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowLogin(true)}
+                  className="flex items-center space-x-1 text-sm text-gray-700 hover:text-gray-900"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Login</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* View Switcher */}
+        {currentUser && (
+          <div className="mb-8 flex justify-center">
+            <div className="flex bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setCurrentView('public')}
+                className={`px-4 py-2 rounded-md ${
+                  currentView === 'public' 
+                    ? 'bg-white shadow-sm text-blue-600' 
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                Public View
+              </button>
+              {currentUser.role === 'contributor' && (
+                <button
+                  onClick={() => setCurrentView('contributor')}
+                  className={`px-4 py-2 rounded-md ${
+                    currentView === 'contributor' 
+                      ? 'bg-white shadow-sm text-green-600' 
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  Contributor View
+                </button>
+              )}
+              {currentUser.role === 'admin' && (
+                <button
+                  onClick={() => setCurrentView('admin')}
+                  className={`px-4 py-2 rounded-md ${
+                    currentView === 'admin' 
+                      ? 'bg-white shadow-sm text-purple-600' 
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  Admin Panel
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Public View */}
+        {(currentView === 'public' || !currentUser) && (
+          <div>
+            {/* Search Bar */}
+            <div className="mb-8">
+              <div className="relative max-w-2xl mx-auto">
+                <input
+                  type="text"
+                  placeholder="Search articles..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+                />
+                <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
+              </div>
+            </div>
+
+            {/* Domain Filters */}
+            <div className="mb-6 flex gap-2 flex-wrap justify-center">
+              <button
+                onClick={() => setFilterDomain('all')}
+                className={`px-4 py-2 rounded-full transition ${
+                  filterDomain === 'all' 
+                    ? 'bg-gray-800 text-white' 
+                    : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'
+                }`}
+              >
+                All News
+              </button>
+              {domains.map(domain => (
+                <button
+                  key={domain.id}
+                  onClick={() => setFilterDomain(domain.name)}
+                  className={`px-4 py-2 rounded-full transition ${
+                    filterDomain === domain.name 
+                      ? `${domain.color} text-white` 
+                      : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'
+                  }`}
+                >
+                  {domain.name}
+                </button>
+              ))}
+            </div>
+
+            {/* News Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {domainFilteredNews.map(item => (
+                <div key={item.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                  <div className={`${getDomainColor(item.domain)} h-2 w-full`}></div>
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white ${getDomainColor(item.domain)}`}>
+                        {item.domain}
+                      </span>
+                      <span className="text-xs text-gray-500">{item.date}</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+                    <p className="text-gray-600 mb-4 line-clamp-3">{item.content}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500">By {item.author}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Contributor View */}
+        {currentView === 'contributor' && currentUser && currentUser.role === 'contributor' && (
+          <div>
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-bold text-gray-900">Your News</h2>
+              <button
+                onClick={() => setShowAddNews(true)}
+                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add News</span>
+              </button>
+            </div>
+
+            {/* News Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {contributorNews.map(item => (
+                <div key={item.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                  <div className={`${getDomainColor(item.domain)} h-2 w-full`}></div>
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white ${getDomainColor(item.domain)}`}>
+                        {item.domain}
+                      </span>
+                      <span className="text-xs text-gray-500">{item.date}</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+                    <p className="text-gray-600 mb-4 line-clamp-3">{item.content}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500">By {item.author}</span>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleDeleteNews(item.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Admin View */}
+        {currentView === 'admin' && currentUser && currentUser.role === 'admin' && (
+          <div>
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
+              <button
+                onClick={() => setShowAdminPanel(!showAdminPanel)}
+                className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition"
+              >
+                <Settings className="h-4 w-4" />
+                <span>{showAdminPanel ? 'Hide' : 'Show'} Admin Panel</span>
+              </button>
+            </div>
+
+            {showAdminPanel && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-xl shadow-md">
+                  <div className="flex items-center">
+                    <Newspaper className="h-8 w-8 text-blue-500 mr-3" />
+                    <div>
+                      <p className="text-2xl font-bold">{news.length}</p>
+                      <p className="text-gray-600">Total News</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-md">
+                  <div className="flex items-center">
+                    <Users className="h-8 w-8 text-green-500 mr-3" />
+                    <div>
+                      <p className="text-2xl font-bold">{users.length}</p>
+                      <p className="text-gray-600">Total Users</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-md">
+                  <div className="flex items-center">
+                    <Mail className="h-8 w-8 text-purple-500 mr-3" />
+                    <div>
+                      <p className="text-2xl font-bold">{subscribers.length}</p>
+                      <p className="text-gray-600">Subscribers</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Admin Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <button
+                onClick={() => setShowAddNews(true)}
+                className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-md hover:shadow-lg transition"
+              >
+                <Plus className="h-8 w-8 text-blue-500 mb-2" />
+                <span className="font-medium">Add News</span>
+              </button>
+              <button
+                onClick={() => setShowAddUser(true)}
+                className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-md hover:shadow-lg transition"
+              >
+                <User className="h-8 w-8 text-green-500 mb-2" />
+                <span className="font-medium">Add User</span>
+              </button>
+              <button
+                onClick={() => setShowAddDomain(true)}
+                className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-md hover:shadow-lg transition"
+              >
+                <Tag className="h-8 w-8 text-purple-500 mb-2" />
+                <span className="font-medium">Add Domain</span>
+              </button>
+            </div>
+
+            {/* News Table */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">All News</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {news.map(item => (
+                      <tr key={item.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{item.title}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full text-white ${getDomainColor(item.domain)}`}>
+                            {item.domain}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.author}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.date}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => handleDeleteNews(item.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Users Table */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Users</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {users.map(user => (
+                      <tr key={user.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.username}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                            user.role === 'contributor' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.domain || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Login Modal */}
+      {showLogin && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+            <form onSubmit={handleLogin}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={loginForm.email}
+                  onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <input
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogin(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Login
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add News Modal */}
+      {showAddNews && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6">Add News</h2>
+            <form onSubmit={handleAddNews}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                <input
+                  type="text"
+                  value={newNews.title}
+                  onChange={(e) => setNewNews({...newNews, title: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              {currentUser && currentUser.role === 'admin' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Domain</label>
+                  <select
+                    value={newNews.domain}
+                    onChange={(e) => setNewNews({...newNews, domain: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select a domain</option>
+                    {domains.map(domain => (
+                      <option key={domain.id} value={domain.name}>{domain.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
+                <textarea
+                  value={newNews.content}
+                  onChange={(e) => setNewNews({...newNews, content: e.target.value})}
+                  rows={6}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddNews(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Add News
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add User Modal */}
+      {showAddUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-6">Add User</h2>
+            <form onSubmit={handleAddUser}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                <input
+                  type="text"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <input
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="user">User</option>
+                  <option value="contributor">Contributor</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              {newUser.role === 'contributor' && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Domain</label>
+                  <select
+                    value={newUser.domain}
+                    onChange={(e) => setNewUser({...newUser, domain: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select a domain</option>
+                    {domains.map(domain => (
+                      <option key={domain.id} value={domain.name}>{domain.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUser(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Add User
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Domain Modal */}
+      {showAddDomain && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-6">Add Domain</h2>
+            <form onSubmit={handleAddDomain}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Domain Name</label>
+                <input
+                  type="text"
+                  value={newDomain.name}
+                  onChange={(e) => setNewDomain({...newDomain, name: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {colors.map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setNewDomain({...newDomain, color})}
+                      className={`h-10 rounded-lg ${color} ${
+                        newDomain.color === color ? 'ring-4 ring-gray-300' : ''
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddDomain(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                  Add Domain
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
