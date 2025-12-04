@@ -57,13 +57,13 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        - VITE_API_URL=https://pulse-api.academy.alenia.io/api
+        - VITE_API_URL=https://pulse-api.academy.alenia.io
     container_name: pulse-frontend
     restart: always
     depends_on:
       - backend
     environment:
-      - VITE_API_URL=https://pulse-api.academy.alenia.io/api
+      - VITE_API_URL=https://pulse-api.academy.alenia.io
       - LANG=C.UTF-8
       - LC_ALL=C.UTF-8
     networks:
