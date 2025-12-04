@@ -98,7 +98,7 @@ The application will be accessible at:
 
 2. Edit the `.env` file and set your secure values:
    - Strong database passwords
-   - Generated JWT secrets
+   - Generated JWT secrets (use the command below)
    - Secure PgAdmin password
 
 3. Generate secure JWT secrets:
@@ -116,23 +116,23 @@ The application will be accessible at:
 Create a `.env` file with:
 
 ```env
-# Database
+# Database Configuration
 POSTGRES_USER_PROD=your_db_user
-POSTGRES_PASSWORD_PROD=your_db_password
+POSTGRES_PASSWORD_PROD=your_secure_db_password  # ⚠️ CHANGE THIS!
 POSTGRES_DB_PROD=newsletter
 
 # JWT Secrets (generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
-JWT_SECRET_PROD=your_jwt_secret_here
-JWT_REFRESH_SECRET_PROD=your_refresh_secret_here
+JWT_SECRET_PROD=your_generated_jwt_secret_here  # ⚠️ CHANGE THIS!
+JWT_REFRESH_SECRET_PROD=your_generated_refresh_secret_here  # ⚠️ CHANGE THIS!
 
-# PgAdmin
-PGADMIN_PASSWORD_PROD=your_pgadmin_password
+# PgAdmin Configuration
+PGADMIN_PASSWORD_PROD=your_secure_pgadmin_password  # ⚠️ CHANGE THIS!
 
 # Rate limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=5
 
-# Bcrypt
+# Bcrypt Configuration
 BCRYPT_ROUNDS=12
 
 # URLs
@@ -141,7 +141,38 @@ FRONTEND_URL=https://pulse.academy.alenia.io
 ALLOWED_ORIGINS=https://pulse.academy.alenia.io
 ```
 
+⚠️ **Important**: For production use, never use the placeholder values shown above. Always generate secure passwords and secrets.
+
 For a complete production environment template, see `.env.production.example`.
+
+##  troubleshoot Troubleshooting
+
+### Database Connection Issues
+
+If you see errors like `Error: connect ECONNREFUSED`, check:
+
+1. **Verify all environment variables are set correctly** in your `.env` file
+2. **Check that the PostgreSQL container is running**:
+   ```bash
+   docker-compose -f docker-compose-prod.yml ps
+   ```
+3. **Verify network connectivity between containers**:
+   ```bash
+   docker-compose -f docker-compose-prod.yml exec backend ping postgres
+   ```
+4. **Check PostgreSQL logs**:
+   ```bash
+   docker-compose -f docker-compose-prod.yml logs postgres
+   ```
+
+### Common Fixes
+
+1. **Ensure your `.env` file has actual values** (not placeholders)
+2. **Restart all services**:
+   ```bash
+   docker-compose -f docker-compose-prod.yml down
+   docker-compose -f docker-compose-prod.yml up -d --build
+   ```
 
 ## 🏗️ Architecture
 
