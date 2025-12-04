@@ -556,6 +556,17 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Root route for health check and identification
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Alenia Pulse API Server',
+        version: '1.2.0',
+        status: 'running',
+        timestamp: new Date().toISOString(),
+        documentation: '/api/health for health check'
+    });
+});
+
 // ============================================
 // SERVER STARTUP
 // ============================================
