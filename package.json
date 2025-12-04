@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "server": "node server.js",
     "server-secure": "node server-secure.js",
+    "init-db": "node init-db.js",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "start-secure": "concurrently \"npm run server-secure\" \"npm run dev\""
   },

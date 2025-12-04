@@ -56,6 +56,20 @@ The application will be accessible at:
 - Frontend: http://localhost:5174
 - Backend: http://localhost:3002
 
+### Database Initialization
+
+To initialize the database with sample data and properly hashed passwords:
+
+```bash
+# Initialize the database
+npm run init-db
+```
+
+This will create:
+- Sample domains (Hiring, Event, Journey, Communication, Admin)
+- Users with properly hashed passwords
+- Sample news articles and subscribers
+
 ## 🔐 Security Features
 
 The application implements industry-standard security practices:
