@@ -33,7 +33,7 @@ services:
       DB_NAME: ${POSTGRES_DB_PROD}
       JWT_SECRET: ${JWT_SECRET_PROD}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET_PROD}
-      BCRYPT_ROUNDS: 10
+      BCRYPT_ROUNDS: 12
       RATE_LIMIT_WINDOW_MS: 900000
       RATE_LIMIT_MAX_REQUESTS: 5
       APP_URL: https://pulse.academy.alenia.io

@@ -61,7 +61,7 @@ The application will be accessible at:
 The application implements industry-standard security practices:
 
 - ✅ **JWT Authentication** with access and refresh tokens
-- ✅ **bcrypt Password Hashing** (10 rounds)
+- ✅ **bcrypt Password Hashing** (12 rounds)
 - ✅ **HttpOnly Cookies** for token storage
 - ✅ **Rate Limiting** (5 login attempts / 15 min)
 - ✅ **Input Validation** with express-validator
@@ -89,6 +89,28 @@ The application will be accessible at:
 - Backend API: https://pulse-api.academy.alenia.io
 - PgAdmin: https://pgadmin.pulse.academy.alenia.io
 
+### Production Environment Setup
+
+1. Create a `.env` file with your production values:
+   ```bash
+   cp .env.production.example .env
+   ```
+
+2. Edit the `.env` file and set your secure values:
+   - Strong database passwords
+   - Generated JWT secrets
+   - Secure PgAdmin password
+
+3. Generate secure JWT secrets:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+
+4. Deploy with Docker Compose:
+   ```bash
+   docker-compose -f docker-compose-prod.yml up -d --build
+   ```
+
 ### Production Environment Variables
 
 Create a `.env` file with:
@@ -111,7 +133,7 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=5
 
 # Bcrypt
-BCRYPT_ROUNDS=10
+BCRYPT_ROUNDS=12
 
 # URLs
 APP_URL=https://pulse.academy.alenia.io
@@ -156,7 +178,7 @@ For a complete production environment template, see `.env.production.example`.
 │   ├── auth.js           # JWT authentication
 │   └── validators.js     # Data validation
 ├── public/               # Static assets
-├── Dockerfile.backend    # Backend Docker image
+├── Dockerfile.backend    # Backend Docker image (uses secure server)
 ├── Dockerfile.frontend   # Frontend Docker image
 ├── server-secure.js      # Secure Express server
 ├── seed-database.js      # Sample data population

@@ -1,17 +1,20 @@
+# Use Node.js 20 as base image
 FROM node:20-alpine
 
+# Set working directory
 WORKDIR /app
 
+# Copy package files
 COPY package*.json ./
 
-# Install production dependencies
+# Install only production dependencies
 RUN npm ci --only=production
 
-# Copy app source
+# Copy application code
 COPY . .
 
 # Expose port
 EXPOSE 3002
 
-# Start the secure server
-CMD ["npm", "run", "server-secure"]
+# Start the secure backend server
+CMD ["node", "server-secure.js"]
