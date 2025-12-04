@@ -1,0 +1,17 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+# Install production dependencies
+RUN npm ci --only=production
+
+# Copy app source
+COPY . .
+
+# Expose port
+EXPOSE 3002
+
+# Start the secure server
+CMD ["npm", "run", "server-secure"]
