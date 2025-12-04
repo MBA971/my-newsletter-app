@@ -67,34 +67,57 @@ const App = () => {
     }
   };
 
-  // Fetch data from backend
-  const fetchData = async () => {
-    setIsLoading(true);
+  // Fetch public data from the backend
+  const fetchPublicData = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-
-      // Always fetch public data
+      
       const [domainsRes, newsRes] = await Promise.all([
         fetch(`${apiUrl}/api/domains`, { credentials: 'include' }),
         fetch(`${apiUrl}/api/news`, { credentials: 'include' })
       ]);
 
-      if (domainsRes.ok) setDomains(await domainsRes.json());
-      if (newsRes.ok) setNews(await newsRes.json());
-
-      // Try to fetch protected data (will fail if not admin, which is fine)
-      try {
-        const [usersRes, subscribersRes] = await Promise.all([
-          fetch(`${apiUrl}/api/users`, { credentials: 'include' }),
-          fetch(`${apiUrl}/api/subscribers`, { credentials: 'include' })
-        ]);
-
-        if (usersRes.ok) setUsers(await usersRes.json());
-        if (subscribersRes.ok) setSubscribers(await subscribersRes.json());
-      } catch (e) {
-        // Ignore errors for protected routes when not logged in
+      if (domainsRes.ok && newsRes.ok) {
+        setDomains(await domainsRes.json());
+        setNews(await newsRes.json());
       }
+    } catch (error) {
+      console.error('Error fetching public data:', error);
+      showNotification('Failed to load public data', 'error');
+    }
+  };
 
+  // Fetch admin data from the backend
+  const fetchAdminData = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      
+      const [usersRes, subscribersRes] = await Promise.all([
+        fetch(`${apiUrl}/api/users`, { credentials: 'include' }),
+        fetch(`${apiUrl}/api/subscribers`, { credentials: 'include' })
+      ]);
+
+      if (usersRes.ok && subscribersRes.ok) {
+        setUsers(await usersRes.json());
+        setSubscribers(await subscribersRes.json());
+      }
+    } catch (error) {
+      console.error('Error fetching admin data:', error);
+      showNotification('Failed to load admin data', 'error');
+    }
+  };
+
+  // Fetch data from backend
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      // Always fetch public data
+      await fetchPublicData();
+      
+      // Fetch admin data only if user is logged in as admin
+      if (currentUser && currentUser.role === 'admin') {
+        await fetchAdminData();
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       showNotification('Failed to load data', 'error');
@@ -105,7 +128,7 @@ const App = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [currentUser]);
 
   // Show notification
   const showNotification = (message, type = 'info') => {
@@ -133,6 +156,11 @@ const App = () => {
         setShowLogin(false);
         showNotification(`Welcome back, ${user.username}!`, 'success');
         setLoginForm({ email: '', password: '' });
+        
+        // Fetch admin data if user is admin
+        if (user.role === 'admin') {
+          await fetchAdminData();
+        }
       } else {
         const error = await response.json();
         showNotification(error.error || 'Login failed', 'error');
@@ -157,6 +185,10 @@ const App = () => {
     } catch (error) {
       console.error('Logout error:', error);
     }
+    
+    // Clear admin data
+    setUsers([]);
+    setSubscribers([]);
   };
 
   // Filter news
