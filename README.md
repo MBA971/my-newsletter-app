@@ -88,6 +88,17 @@ The application implements industry-standard security practices:
 | Hiring | hiring@company.com | hiring123 |
 | Events | events@company.com | event123 |
 
+## 🐳 Development with Docker
+
+```bash
+# Build and run with Docker Compose
+docker-compose up -d --build
+```
+
+The application will be accessible at:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3002
+
 ## 🐳 Production Deployment
 
 ```bash
