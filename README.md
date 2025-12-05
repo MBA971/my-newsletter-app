@@ -33,20 +33,17 @@ cd ALENIA_Pulse
 npm install
 
 # Configure environment variables
-cp .env.example .env
+# For development:
+cp .env.development .env
+# For production:
+# cp .env.production.example .env
 # Edit .env with your values
 
 # Start the database (Docker)
 docker-compose up -d db
 
-# Create the database
-node create-db.js
-
-# Seed with sample data
-node seed-database.js
-
-# Migrate passwords (if needed)
-node migrate-passwords.js
+# Initialize the database with sample data
+npm run init-db
 
 # Start the application
 npm run start-secure
