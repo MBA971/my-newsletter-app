@@ -23,6 +23,9 @@
     "check-passwords": "node check-passwords.js",
     "debug-login-route": "node debug-login-route.js",
     "direct-login-test": "node direct-login-test.js",
+    "analyze-hashes": "node analyze-hashes.js",
+    "exact-login-replication": "node exact-login-replication.js",
+    "production-debug": "node production-debug.js",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "start-secure": "concurrently \"npm run server-secure\" \"npm run dev\""
   },
