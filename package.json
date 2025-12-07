@@ -26,6 +26,8 @@
     "analyze-hashes": "node analyze-hashes.js",
     "exact-login-replication": "node exact-login-replication.js",
     "production-debug": "node production-debug.js",
+    "check-production-db": "node check-production-db.js",
+    "reset-passwords": "node reset-passwords.js",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "start-secure": "concurrently \"npm run server-secure\" \"npm run dev\""
   },
