@@ -156,31 +156,65 @@ const seedDatabase = async () => {
 app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
     try {
         const { email, password } = req.body;
+        
+        console.log('=== LOGIN ATTEMPT ===');
+        console.log('Email:', email);
+        console.log('Password (length):', password.length);
+        console.log('Request IP:', req.ip);
+        console.log('User-Agent:', req.get('User-Agent'));
+        console.log('Timestamp:', new Date().toISOString());
 
         // Find user
+        console.log('Querying database for user...');
         const result = await pool.query(
             'SELECT * FROM users WHERE email = $1',
             [email]
         );
+        
+        console.log('Database query result count:', result.rows.length);
 
         if (result.rows.length === 0) {
+            console.log('❌ USER NOT FOUND - Returning 401');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         const user = result.rows[0];
+        console.log('User found:', {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            password_hash_length: user.password.length
+        });
 
         // Verify password
+        console.log('Verifying password...');
         const isValid = await bcrypt.compare(password, user.password);
+        console.log('Password verification result:', isValid);
 
         if (!isValid) {
+            console.log('❌ INVALID PASSWORD - Returning 401');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
+        console.log('✅ Password verified successfully');
+        
+        // Log JWT configuration
+        console.log('JWT Configuration:');
+        console.log('- JWT_SECRET length:', (process.env.JWT_SECRET || '').length);
+        console.log('- JWT_REFRESH_SECRET length:', (process.env.JWT_REFRESH_SECRET || '').length);
+        console.log('- NODE_ENV:', process.env.NODE_ENV);
+
         // Generate tokens
+        console.log('Generating access token...');
         const accessToken = generateAccessToken(user);
+        console.log('Access token generated, length:', accessToken.length);
+
+        console.log('Generating refresh token...');
         const refreshToken = generateRefreshToken(user);
+        console.log('Refresh token generated, length:', refreshToken.length);
 
         // Set cookies
+        console.log('Setting cookies...');
         res.cookie('accessToken', accessToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -197,13 +231,15 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
 
         // Return user info (without password)
         const { password: _, ...userWithoutPassword } = user;
+        console.log('✅ LOGIN SUCCESSFUL - Sending response');
         res.json({
             message: 'Login successful',
             user: userWithoutPassword
         });
 
     } catch (error) {
-        console.error('Login error:', error);
+        console.error('❌ LOGIN ERROR:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({ error: 'Server error' });
     }
 });

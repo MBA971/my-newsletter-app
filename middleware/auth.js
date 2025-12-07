@@ -3,20 +3,33 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-super-secret-refresh-key-change-this-in-production';
 
+console.log('=== AUTH MODULE INITIALIZED ===');
+console.log('JWT_SECRET length:', JWT_SECRET.length);
+console.log('JWT_REFRESH_SECRET length:', JWT_REFRESH_SECRET.length);
+console.log('Using default secrets:', !process.env.JWT_SECRET, !process.env.JWT_REFRESH_SECRET);
+
 // Middleware to authenticate JWT token
 export const authenticateToken = (req, res, next) => {
     // Try to get token from cookie first, then from Authorization header
     const token = req.cookies?.accessToken || req.headers['authorization']?.split(' ')[1];
 
     if (!token) {
+        console.log('❌ NO ACCESS TOKEN PROVIDED');
         return res.status(401).json({ error: 'Access token required' });
     }
 
     try {
+        console.log('Verifying access token...');
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded;
+        console.log('✅ TOKEN VERIFIED SUCCESSFULLY:', {
+            userId: decoded.userId,
+            email: decoded.email,
+            role: decoded.role
+        });
         next();
     } catch (error) {
+        console.log('❌ TOKEN VERIFICATION FAILED:', error.name, error.message);
         if (error.name === 'TokenExpiredError') {
             return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
         }
@@ -78,29 +91,47 @@ export const checkDomainAccess = (req, res, next) => {
 
 // Generate access token
 export const generateAccessToken = (user) => {
-    return jwt.sign(
-        {
-            userId: user.id,
-            email: user.email,
-            username: user.username,
-            role: user.role,
-            domain: user.domain
-        },
+    console.log('Generating access token for user:', user.id);
+    const payload = {
+        userId: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        domain: user.domain
+    };
+    
+    console.log('Token payload:', payload);
+    console.log('JWT_SECRET length for signing:', JWT_SECRET.length);
+    
+    const token = jwt.sign(
+        payload,
         JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
+    
+    console.log('Access token generated successfully, length:', token.length);
+    return token;
 };
 
 // Generate refresh token
 export const generateRefreshToken = (user) => {
-    return jwt.sign(
-        {
-            userId: user.id,
-            email: user.email
-        },
+    console.log('Generating refresh token for user:', user.id);
+    const payload = {
+        userId: user.id,
+        email: user.email
+    };
+    
+    console.log('Refresh token payload:', payload);
+    console.log('JWT_REFRESH_SECRET length for signing:', JWT_REFRESH_SECRET.length);
+    
+    const token = jwt.sign(
+        payload,
         JWT_REFRESH_SECRET,
         { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
     );
+    
+    console.log('Refresh token generated successfully, length:', token.length);
+    return token;
 };
 
 // Verify refresh token

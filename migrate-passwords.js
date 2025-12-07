@@ -5,7 +5,7 @@ import pg from 'pg';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ path: '.env.local' });
 
 const { Pool } = pg;
 
