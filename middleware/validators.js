@@ -20,6 +20,7 @@ export const validateLogin = [
         .withMessage('Valid email is required')
         .normalizeEmail(),
     body('password')
+        .trim()  // Add trim() to remove leading/trailing whitespace
         .notEmpty()
         .withMessage('Password is required')
         .isLength({ min: 6 })

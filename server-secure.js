@@ -160,6 +160,7 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
         console.log('=== LOGIN ATTEMPT ===');
         console.log('Email:', email);
         console.log('Password (length):', password.length);
+        console.log('Password has leading/trailing whitespace:', password !== password.trim());
         console.log('Request IP:', req.ip);
         console.log('User-Agent:', req.get('User-Agent'));
         console.log('Timestamp:', new Date().toISOString());
@@ -188,11 +189,18 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
 
         // Verify password
         console.log('Verifying password...');
-        const isValid = await bcrypt.compare(password, user.password);
+        console.log('Password before trim:', JSON.stringify(password));
+        const trimmedPassword = password.trim();
+        console.log('Password after trim:', JSON.stringify(trimmedPassword));
+        
+        const isValid = await bcrypt.compare(trimmedPassword, user.password);
         console.log('Password verification result:', isValid);
 
         if (!isValid) {
             console.log('❌ INVALID PASSWORD - Returning 401');
+            // Let's also try with the original password to see if that works
+            const isValidOriginal = await bcrypt.compare(password, user.password);
+            console.log('Original password verification result:', isValidOriginal);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
