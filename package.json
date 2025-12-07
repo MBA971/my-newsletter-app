@@ -22,6 +22,7 @@
     "test-login": "node test-login.js",
     "check-passwords": "node check-passwords.js",
     "debug-login-route": "node debug-login-route.js",
+    "direct-login-test": "node direct-login-test.js",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "start-secure": "concurrently \"npm run server-secure\" \"npm run dev\""
   },
