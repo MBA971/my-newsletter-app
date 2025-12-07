@@ -35,7 +35,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET_PROD}
       BCRYPT_ROUNDS: 12
       RATE_LIMIT_WINDOW_MS: 900000
-      RATE_LIMIT_MAX_REQUESTS: 5
+      RATE_LIMIT_MAX_REQUESTS: 15
       APP_URL: https://pulse.academy.alenia.io
       FRONTEND_URL: https://pulse.academy.alenia.io
       ALLOWED_ORIGINS: https://pulse.academy.alenia.io
