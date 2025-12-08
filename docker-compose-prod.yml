@@ -30,7 +30,7 @@ services:
       DB_HOST: postgres
       DB_NAME: ${POSTGRES_DB_PROD}
       DB_PASSWORD: ${POSTGRES_PASSWORD_PROD}
-      DB_PORT: 5433
+      DB_PORT: 5432
       PORT: 3002
       NODE_ENV: production
       # JWT Configuration
