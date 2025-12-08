@@ -928,6 +928,11 @@ const App = () => {
                     placeholder="e.g., Technology, Business"
                     value={newDomain.name}
                     onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                      }
+                    }}
                     className="form-input"
                     required
                   />
@@ -1052,6 +1057,11 @@ const App = () => {
                   placeholder="Enter username"
                   value={newUser.username}
                   onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
                   className="form-input"
                   required
                 />
@@ -1063,6 +1073,11 @@ const App = () => {
                   placeholder="Enter email"
                   value={newUser.email}
                   onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
                   className="form-input"
                   required
                 />
@@ -1074,6 +1089,11 @@ const App = () => {
                   placeholder="Enter password"
                   value={newUser.password}
                   onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
                   className="form-input"
                   required
                 />
@@ -1083,6 +1103,11 @@ const App = () => {
                 <select
                   value={newUser.role}
                   onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
                   className="form-select"
                 >
                   <option value="contributor">Contributor</option>
@@ -1095,6 +1120,11 @@ const App = () => {
                   <select
                     value={newUser.domain}
                     onChange={(e) => setNewUser({ ...newUser, domain: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                      }
+                    }}
                     className="form-select"
                     required
                   >
@@ -1235,6 +1265,11 @@ const App = () => {
                   placeholder="Enter article title"
                   value={newNews.title}
                   onChange={(e) => setNewNews({ ...newNews, title: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
                   className="form-input"
                   required
                 />
@@ -1245,6 +1280,11 @@ const App = () => {
                   placeholder="Write your article content..."
                   value={newNews.content}
                   onChange={(e) => setNewNews({ ...newNews, content: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                    }
+                  }}
                   className="form-textarea"
                   required
                 />
@@ -1254,6 +1294,11 @@ const App = () => {
                 <select
                   value={newNews.domain}
                   onChange={(e) => setNewNews({ ...newNews, domain: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
                   className="form-select"
                   required
                 >
