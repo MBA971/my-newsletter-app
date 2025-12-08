@@ -110,20 +110,24 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
                                     <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>{item.content}</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleEdit(item)}
-                                        className="btn-icon"
-                                        style={{ color: 'var(--primary-600)' }}
-                                    >
-                                        <Edit size={20} />
-                                    </button>
-                                    <button
-                                        onClick={() => onDeleteNews(item.id)}
-                                        className="btn-icon"
-                                        style={{ color: 'var(--error-600)' }}
-                                    >
-                                        <Trash2 size={20} />
-                                    </button>
+                                    {(currentUser.role === 'admin' || (item.author_id ? parseInt(item.author_id) === parseInt(currentUser.id) : item.author === currentUser.username)) && (
+                                        <>
+                                            <button
+                                                onClick={() => handleEdit(item)}
+                                                className="btn-icon"
+                                                style={{ color: 'var(--primary-600)' }}
+                                            >
+                                                <Edit size={20} />
+                                            </button>
+                                            <button
+                                                onClick={() => onDeleteNews(item.id)}
+                                                className="btn-icon"
+                                                style={{ color: 'var(--error-600)' }}
+                                            >
+                                                <Trash2 size={20} />
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>

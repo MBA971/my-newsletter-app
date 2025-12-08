@@ -91,6 +91,7 @@ const createTables = async () => {
         domain VARCHAR(100) NOT NULL,
         content TEXT NOT NULL,
         author VARCHAR(100) NOT NULL,
+        author_id INTEGER,
         date DATE NOT NULL DEFAULT CURRENT_DATE
       )
     `);
@@ -156,7 +157,7 @@ const seedDatabase = async () => {
 app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
     try {
         const { email, password } = req.body;
-        
+
         console.log('=== LOGIN ATTEMPT ===');
         console.log('Email:', email);
         console.log('Password (length):', password.length);
@@ -171,7 +172,7 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
             'SELECT * FROM users WHERE email = $1',
             [email]
         );
-        
+
         console.log('Database query result count:', result.rows.length);
 
         if (result.rows.length === 0) {
@@ -192,7 +193,7 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
         console.log('Password before trim:', JSON.stringify(password));
         const trimmedPassword = password.trim();
         console.log('Password after trim:', JSON.stringify(trimmedPassword));
-        
+
         const isValid = await bcrypt.compare(trimmedPassword, user.password);
         console.log('Password verification result:', isValid);
 
@@ -205,7 +206,7 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
         }
 
         console.log('✅ Password verified successfully');
-        
+
         // Log JWT configuration
         console.log('JWT Configuration:');
         console.log('- JWT_SECRET length:', (process.env.JWT_SECRET || '').length);
@@ -438,6 +439,57 @@ app.post('/api/news', authenticateToken, requireContributor, checkDomainAccess, 
     }
 });
 
+// Update news (contributor or admin)
+// Update news (contributor or admin)
+app.put('/api/news/:id', authenticateToken, requireContributor, checkDomainAccess, validateNewsCreation, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, domain, content } = req.body;
+
+        console.log(`[DEBUG] News Update: User=${req.user.username} (${req.user.role}) vs Article ${id}`);
+
+        const newsResult = await pool.query('SELECT * FROM news WHERE id = $1', [id]);
+        if (newsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'News not found' });
+        }
+        const newsItem = newsResult.rows[0];
+
+        console.log(`[DEBUG] Article Author=${newsItem.author}, Domain=${newsItem.domain}`);
+
+        // Check permissions for contributors
+        if (req.user.role === 'contributor') {
+            // Use trim() to ensure no whitespace issues
+            const articleAuthor = (newsItem.author || '').trim();
+            const userAuthor = (req.user.username || '').trim();
+
+            if (articleAuthor !== userAuthor) {
+                console.log(`[DEBUG] 403 Author Mismatch: '${articleAuthor}' !== '${userAuthor}'`);
+                return res.status(403).json({ error: 'You can only edit your own articles' });
+            }
+
+            // Contributors cannot change the domain
+            const articleDomain = (newsItem.domain || '').trim();
+            const requestDomain = (domain || '').trim();
+
+            // Note: checkDomainAccess middleware already checks if requestDomain matches user's domain
+            // But we must also ensure we don't move an article OUT of our domain (if that was possible)
+            if (requestDomain !== req.user.domain) {
+                console.log(`[DEBUG] 403 Domain Mismatch: '${requestDomain}' !== '${req.user.domain}'`);
+                return res.status(403).json({ error: 'You cannot change the domain' });
+            }
+        }
+
+        const result = await pool.query(
+            'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
+            [title, domain, content, id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Delete news (contributor can delete their own, admin can delete any)
 app.delete('/api/news/:id', authenticateToken, requireContributor, async (req, res) => {
     try {
@@ -522,16 +574,38 @@ app.post('/api/users', authenticateToken, requireAdmin, validateUserCreation, as
     }
 });
 
-// Update user (admin only)
-app.put('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+// Update user (admin or self)
+app.put('/api/users/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        const { username, email, role, domain } = req.body;
+        const { username, email, role, domain, password } = req.body;
 
-        const result = await pool.query(
-            'UPDATE users SET username = $1, email = $2, role = $3, domain = $4 WHERE id = $5 RETURNING id, username, email, role, domain, created_at',
-            [username, email, role, domain, id]
-        );
+        // Check permissions: Admin or Self
+        const isSelf = parseInt(id) === parseInt(req.user.userId);
+        if (req.user.role !== 'admin' && !isSelf) {
+            return res.status(403).json({ error: 'Unauthorized to update this user' });
+        }
+
+        let query = 'UPDATE users SET username = $1, email = $2';
+        let params = [username, email];
+        let paramIndex = 3;
+
+        // Only admin can update role and domain
+        if (req.user.role === 'admin') {
+            query += `, role = $${paramIndex++}, domain = $${paramIndex++}`;
+            params.push(role, domain);
+        }
+
+        if (password && password.trim() !== '') {
+            const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS) || 12);
+            query += `, password = $${paramIndex++}`;
+            params.push(hashedPassword);
+        }
+
+        query += ` WHERE id = $${paramIndex} RETURNING id, username, email, role, domain, created_at`;
+        params.push(id);
+
+        const result = await pool.query(query, params);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'User not found' });
@@ -540,7 +614,11 @@ app.put('/api/users/:id', authenticateToken, requireAdmin, async (req, res) => {
         res.json(result.rows[0]);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Server error' });
+        if (err.code === '23505') { // Unique violation
+            res.status(409).json({ error: 'Username or email already exists' });
+        } else {
+            res.status(500).json({ error: 'Server error' });
+        }
     }
 });
 

@@ -232,7 +232,8 @@ async function resetAndSeedDatabase() {
             // Random date within last 30 days
             const randomDays = Math.floor(Math.random() * 30);
             await pool.query(
-                'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE - CAST($5 AS INTEGER))',
+                `INSERT INTO news (title, domain, content, author, author_id, date) 
+                 VALUES ($1, $2, $3, $4, (SELECT id FROM users WHERE username = $4), CURRENT_DATE - CAST($5 AS INTEGER))`,
                 [article.title, article.domain, article.content, article.author, randomDays]
             );
         }
