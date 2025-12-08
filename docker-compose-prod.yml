@@ -7,35 +7,40 @@ services:
       POSTGRES_USER: ${POSTGRES_USER_PROD}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROD}
       POSTGRES_DB: ${POSTGRES_DB_PROD}
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - app_backup:/backup
     networks:
       - app-network
 
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.backend
     container_name: pulse-backend
     restart: always
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
     depends_on:
       - postgres
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER_PROD}:${POSTGRES_PASSWORD_PROD}@postgres:5432/${POSTGRES_DB_PROD}?sslmode=disable
+      DB_USER: ${POSTGRES_USER_PROD}
+      DB_HOST: postgres
+      DB_NAME: ${POSTGRES_DB_PROD}
+      DB_PASSWORD: ${POSTGRES_PASSWORD_PROD}
+      DB_PORT: 5432
       PORT: 3002
       NODE_ENV: production
-      # Database connection variables that the backend code expects
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER_PROD}
-      DB_PASSWORD: ${POSTGRES_PASSWORD_PROD}
-      DB_NAME: ${POSTGRES_DB_PROD}
+      # JWT Configuration
       JWT_SECRET: ${JWT_SECRET_PROD}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET_PROD}
       BCRYPT_ROUNDS: 12
       RATE_LIMIT_WINDOW_MS: 900000
-      RATE_LIMIT_MAX_REQUESTS: 15
+      RATE_LIMIT_MAX_REQUESTS: 100
       APP_URL: https://pulse.academy.alenia.io
       FRONTEND_URL: https://pulse.academy.alenia.io
       ALLOWED_ORIGINS: https://pulse.academy.alenia.io
@@ -54,12 +59,17 @@ services:
 
   frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile.frontend
       args:
         - VITE_API_URL=https://pulse-api.academy.alenia.io
     container_name: pulse-frontend
     restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
     environment:
@@ -105,5 +115,4 @@ networks:
 
 volumes:
   postgres_data:
-  app_backup:
   pgadmin_data:
