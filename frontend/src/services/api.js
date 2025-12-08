@@ -1,10 +1,10 @@
 // Handle Docker vs Localhost resolution
-let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+let apiUrl = import.meta.env.VITE_API_URL || 'https://pulse-api.academy.alenia.io';
 
-// If running in browser and URL contains '://backend' (docker service name), replace with localhost:3002
-// This fixes the issue where docker-compose sets VITE_API_URL=http://backend:3002 but browser needs localhost:3002
+// If running in browser and URL contains '://backend' (docker service name), replace with the production API URL
+// This fixes the issue where docker-compose sets VITE_API_URL=http://backend:3002 but browser needs the production URL
 if (typeof window !== 'undefined' && apiUrl.includes('://backend')) {
-    apiUrl = apiUrl.replace('://backend:', '://localhost:').replace('://backend', '://localhost:3002');
+    apiUrl = 'https://pulse-api.academy.alenia.io';
 }
 
 const API_URL = apiUrl;
