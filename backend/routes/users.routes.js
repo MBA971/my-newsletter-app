@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.get('/', authenticateToken, requireRole('admin'), getAllUsers);
 router.post('/', authenticateToken, requireRole('admin'), createUser);
-router.put('/:id', authenticateToken, requireRole('admin'), updateUser);
+router.put('/:id', authenticateToken, updateUser);
 router.delete('/:id', authenticateToken, requireRole('admin'), deleteUser);
 
 export default router;

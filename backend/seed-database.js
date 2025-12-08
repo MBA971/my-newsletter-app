@@ -260,4 +260,16 @@ async function resetAndSeedDatabase() {
 }
 
 // Run the seeding
-resetAndSeedDatabase();
+export const seedDatabase = async () => {
+    try {
+        await resetAndSeedDatabase();
+    } catch (error) {
+        console.error('Failed to seed database:', error);
+        throw error;
+    }
+};
+
+// Run if executed directly
+if (process.argv[1] === import.meta.url || process.argv[1].endsWith('seed-database.js')) {
+    resetAndSeedDatabase().then(() => pool.end());
+}

@@ -75,15 +75,15 @@ const App = () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       console.log('Fetching public data from:', apiUrl);
-      
+
       // Get token from localStorage if available
       const token = localStorage.getItem('accessToken');
       console.log('Token from localStorage (public data):', token);
-      
+
       const headers = token ? {
         'Authorization': `Bearer ${token}`
       } : {};
-      
+
       const [domainsRes, newsRes] = await Promise.all([
         fetch(`${apiUrl}/api/domains`, { headers }),
         fetch(`${apiUrl}/api/news`, { headers })
@@ -107,15 +107,15 @@ const App = () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       console.log('Fetching admin data from:', apiUrl);
-      
+
       // Get token from localStorage
       const token = localStorage.getItem('accessToken');
       console.log('Token from localStorage:', token);
-      
+
       const headers = token ? {
         'Authorization': `Bearer ${token}`
       } : {};
-      
+
       const [usersRes, subscribersRes] = await Promise.all([
         fetch(`${apiUrl}/api/users`, { headers }),
         fetch(`${apiUrl}/api/subscribers`, { headers })
@@ -146,7 +146,7 @@ const App = () => {
     try {
       // Always fetch public data
       await fetchPublicData();
-      
+
       // Fetch admin data only if user is logged in as admin
       if (currentUser && currentUser.role === 'admin') {
         await fetchAdminData();
@@ -215,17 +215,17 @@ const App = () => {
         const data = await response.json();
         const user = data.user;
         const token = data.accessToken;
-        
+
         // Store token in localStorage
         localStorage.setItem('accessToken', token);
-        
+
         console.log('Login successful, user:', user);
         setCurrentUser(user);
         setCurrentView(user.role === 'admin' ? 'admin' : 'contributor');
         setShowLogin(false);
         showNotification(`Welcome back, ${user.username}!`, 'success');
         setLoginForm({ email: '', password: '' });
-        
+
         // Fetch admin data if user is admin
         if (user.role === 'admin') {
           await fetchAdminData();
@@ -245,10 +245,10 @@ const App = () => {
   const handleLogout = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      
+
       // Get token from localStorage
       const token = localStorage.getItem('accessToken');
-      
+
       if (token) {
         console.log('Logging out from:', `${apiUrl}/api/auth/logout`);
         const response = await fetch(`${apiUrl}/api/auth/logout`, {
@@ -259,10 +259,10 @@ const App = () => {
         });
         console.log('Logout response status:', response.status);
       }
-      
+
       // Remove token from localStorage
       localStorage.removeItem('accessToken');
-      
+
       setCurrentUser(null);
       setCurrentView('public');
       setFilterDomain('all');
@@ -270,10 +270,17 @@ const App = () => {
     } catch (error) {
       console.error('Logout error:', error);
     }
-    
+
     // Clear admin data
     setUsers([]);
     setSubscribers([]);
+  };
+
+  // Handle opening new user form
+  const handleOpenNewUser = () => {
+    setEditingUser(null);
+    setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
+    setShowAddUser(true);
   };
 
   // Handle edit user
@@ -289,6 +296,13 @@ const App = () => {
     setShowAddUser(true);
   };
 
+  // Handle opening new domain form
+  const handleOpenNewDomain = () => {
+    setEditingDomain(null);
+    setNewDomain({ name: '', color: '#3b82f6' });
+    setShowAddDomain(true);
+  };
+
   // Handle edit domain
   const handleEditDomain = (domain) => {
     setEditingDomain(domain);
@@ -297,6 +311,13 @@ const App = () => {
       color: domain.color
     });
     setShowAddDomain(true);
+  };
+
+  // Handle opening new news form
+  const handleOpenNewNews = () => {
+    setEditingNews(null);
+    setNewNews({ title: '', content: '', domain: '' });
+    setShowAddNews(true);
   };
 
   // Handle edit news
@@ -308,6 +329,27 @@ const App = () => {
       domain: newsItem.domain
     });
     setShowAddNews(true);
+  };
+
+  // Handle cancel news form
+  const handleCancelNews = () => {
+    setEditingNews(null);
+    setNewNews({ title: '', content: '', domain: '' });
+    setShowAddNews(false);
+  };
+
+  // Handle cancel user form
+  const handleCancelUser = () => {
+    setEditingUser(null);
+    setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
+    setShowAddUser(false);
+  };
+
+  // Handle cancel domain form
+  const handleCancelDomain = () => {
+    setEditingDomain(null);
+    setNewDomain({ name: '', color: '#3b82f6' });
+    setShowAddDomain(false);
   };
 
   // Filter news
@@ -334,12 +376,12 @@ const App = () => {
     e.preventDefault();
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      
+
       if (editingNews) {
         // Edit existing news
         const response = await fetch(`${apiUrl}/api/news/${editingNews.id}`, {
           method: 'PUT',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
@@ -363,7 +405,7 @@ const App = () => {
         // Add new news
         const response = await fetch(`${apiUrl}/api/news`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
@@ -391,7 +433,7 @@ const App = () => {
   // Handle deleting news
   const handleDeleteNews = async (id) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const response = await fetch(`${apiUrl}/api/news/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -413,16 +455,28 @@ const App = () => {
     e.preventDefault();
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      
+
       if (editingUser) {
-        // Edit existing user
+        // Edit existing user - only include password if it's provided
+        const updateData = {
+          username: newUser.username,
+          email: newUser.email,
+          role: newUser.role,
+          domain: newUser.domain
+        };
+
+        // Only include password if it's not empty
+        if (newUser.password && newUser.password.trim() !== '') {
+          updateData.password = newUser.password;
+        }
+
         const response = await fetch(`${apiUrl}/api/users/${editingUser.id}`, {
           method: 'PUT',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
-          body: JSON.stringify(newUser)
+          body: JSON.stringify(updateData)
         });
 
         if (response.ok) {
@@ -438,7 +492,7 @@ const App = () => {
         // Add new user
         const response = await fetch(`${apiUrl}/api/users`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
@@ -464,12 +518,12 @@ const App = () => {
     e.preventDefault();
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      
+
       if (editingDomain) {
         // Edit existing domain
         const response = await fetch(`${apiUrl}/api/domains/${editingDomain.id}`, {
           method: 'PUT',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
@@ -489,7 +543,7 @@ const App = () => {
         // Add new domain
         const response = await fetch(`${apiUrl}/api/domains`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
           },
@@ -513,7 +567,7 @@ const App = () => {
   // Handle deleting user
   const handleDeleteUser = async (id) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const response = await fetch(`${apiUrl}/api/users/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -534,7 +588,7 @@ const App = () => {
   const handleAddDomain = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const response = await fetch(`${apiUrl}/api/domains`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -558,7 +612,7 @@ const App = () => {
   // Handle deleting domain
   const handleDeleteDomain = async (id) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const response = await fetch(`${apiUrl}/api/domains/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -752,7 +806,7 @@ const App = () => {
       <div className="section-header">
         <h2 className="section-title">Manage Your Articles</h2>
         <button
-          onClick={() => setShowAddNews(!showAddNews)}
+          onClick={handleOpenNewNews}
           className="btn btn-success"
         >
           <Plus size={20} />
@@ -763,8 +817,8 @@ const App = () => {
       {/* Add News Form */}
       {showAddNews && (
         <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
-          <h3 style={{ marginBottom: 'var(--spacing-4)' }}>New Article</h3>
-          <form onSubmit={handleAddNews}>
+          <h3 style={{ marginBottom: 'var(--spacing-4)' }}>{editingNews ? 'Edit Article' : 'New Article'}</h3>
+          <form onSubmit={handleSaveNews}>
             <div className="form-group">
               <label className="form-label">Title</label>
               <input
@@ -792,7 +846,7 @@ const App = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setShowAddNews(false)}
+                onClick={handleCancelNews}
                 className="btn btn-outline"
               >
                 Cancel
@@ -857,7 +911,7 @@ const App = () => {
         <div className="section-header">
           <h2 className="section-title">Manage Domains</h2>
           <button
-            onClick={() => setShowAddDomain(!showAddDomain)}
+            onClick={handleOpenNewDomain}
             className="btn btn-secondary"
           >
             <Plus size={20} />
@@ -909,7 +963,7 @@ const App = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddDomain(false)}
+                  onClick={handleCancelDomain}
                   className="btn btn-outline"
                 >
                   Cancel
@@ -975,7 +1029,7 @@ const App = () => {
         <div className="section-header">
           <h2 className="section-title">Manage Users</h2>
           <button
-            onClick={() => setShowAddUser(!showAddUser)}
+            onClick={handleOpenNewUser}
             className="btn btn-success"
           >
             <Plus size={20} />
@@ -1011,14 +1065,17 @@ const App = () => {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Password</label>
+                <label className="form-label">
+                  Password {editingUser && <span style={{ color: 'var(--text-tertiary)', fontWeight: 'var(--font-weight-normal)', fontSize: 'var(--font-size-xs)' }}>(leave empty to keep current)</span>}
+                </label>
                 <input
                   type="password"
-                  placeholder="Enter password"
+                  placeholder={editingUser ? "Leave empty to keep current password" : "Enter password"}
                   value={newUser.password}
                   onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                   className="form-input"
-                  required
+                  style={editingUser ? { backgroundColor: 'var(--bg-tertiary)', fontStyle: 'italic' } : {}}
+                  required={!editingUser}
                 />
               </div>
               <div className="form-group">
@@ -1054,7 +1111,7 @@ const App = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddUser(false)}
+                  onClick={handleCancelUser}
                   className="btn btn-outline"
                 >
                   Cancel

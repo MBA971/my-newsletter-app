@@ -1,15 +1,15 @@
 import { Pool } from 'pg';
-import dotenv from 'dotenv';
+import config from '../config/config.js';
 
-dotenv.config();
+
 
 // Create a single database connection pool to be reused
 const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'newsletter',
-  password: process.env.DB_PASSWORD || 'postgres',
-  port: process.env.DB_PORT || 5432,
+  user: config.db.user,
+  host: config.db.host,
+  database: config.db.database,
+  password: config.db.password,
+  port: config.db.port,
 });
 
 export default pool;

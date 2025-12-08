@@ -1,16 +1,14 @@
 import bcrypt from 'bcrypt';
 import { Pool } from 'pg';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import config from './config/config.js';
 
 // Database connection
 const pool = new Pool({
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'newsletter',
-    password: process.env.DB_PASSWORD || 'postgres',
-    port: process.env.DB_PORT || 5432,
+    user: config.db.user,
+    host: config.db.host,
+    database: config.db.database,
+    password: config.db.password,
+    port: config.db.port,
 });
 
 // User data with plain text passwords (will be hashed)
@@ -89,14 +87,14 @@ async function initDatabase() {
     try {
         console.log('Connecting to database...');
         const client = await pool.connect();
-        
+
         // Clear existing data
         console.log('Clearing existing data...');
         await client.query('DELETE FROM news');
         await client.query('DELETE FROM subscribers');
         await client.query('DELETE FROM users');
         await client.query('DELETE FROM domains');
-        
+
         // Insert domains
         console.log('Inserting domains...');
         for (const domain of domains) {
@@ -105,11 +103,11 @@ async function initDatabase() {
                 [domain.name, domain.color]
             );
         }
-        
+
         // Insert users with hashed passwords
         console.log('Inserting users with hashed passwords...');
-        const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
-        
+        const saltRounds = config.jwt.rounds;
+
         for (const user of users) {
             const hashedPassword = await bcrypt.hash(user.password, saltRounds);
             await client.query(
@@ -118,7 +116,7 @@ async function initDatabase() {
             );
             console.log(`✓ Created user: ${user.username} (${user.email})`);
         }
-        
+
         // Insert sample subscribers
         console.log('Inserting sample subscribers...');
         const subscribers = [
@@ -131,14 +129,14 @@ async function initDatabase() {
             { email: 'grace.taylor@example.com', name: 'Grace Taylor' },
             { email: 'henry.anderson@example.com', name: 'Henry Anderson' }
         ];
-        
+
         for (const subscriber of subscribers) {
             await client.query(
                 'INSERT INTO subscribers (email, name) VALUES ($1, $2)',
                 [subscriber.email, subscriber.name]
             );
         }
-        
+
         // Insert sample news articles
         console.log('Inserting sample news articles...');
         const newsArticles = [
@@ -197,14 +195,14 @@ async function initDatabase() {
                 date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
             }
         ];
-        
+
         for (const article of newsArticles) {
             await client.query(
                 'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, $5)',
                 [article.title, article.domain, article.content, article.author, article.date]
             );
         }
-        
+
         client.release();
         console.log('✅ Database initialized successfully!');
         console.log('\n📋 Login Credentials:');
@@ -215,7 +213,7 @@ async function initDatabase() {
         console.log('   Communication: comm@company.com / comm123');
         console.log('   Admin Contributor: admin.contributor@company.com / admin.contrib123');
         console.log('   Regular Users: john.doe@company.com / user123 or jane.smith@company.com / user123');
-        
+
     } catch (error) {
         console.error('❌ Database initialization failed:', error);
     } finally {

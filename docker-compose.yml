@@ -24,6 +24,9 @@ services:
     restart: always
     ports:
       - "3002:3002"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
     environment:
       DB_USER: postgres
       DB_HOST: db
@@ -62,6 +65,7 @@ services:
 
 volumes:
   postgres_data:
+
 
 networks:
   newsletter_network:
