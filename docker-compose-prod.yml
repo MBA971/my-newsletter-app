@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_PROD}
       POSTGRES_DB: ${POSTGRES_DB_PROD}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -32,7 +32,7 @@ services:
       DB_HOST: postgres
       DB_NAME: ${POSTGRES_DB_PROD}
       DB_PASSWORD: ${POSTGRES_PASSWORD_PROD}
-      DB_PORT: 5432
+      DB_PORT: 5433
       PORT: 3002
       NODE_ENV: production
       # JWT Configuration
