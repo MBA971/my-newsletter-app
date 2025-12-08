@@ -2,14 +2,24 @@ import express from 'express';
 import cors from 'cors';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from './middleware/auth.js';
+import { requireRole, authenticateToken } from './middleware/auth.js';
 
 dotenv.config();
 
 const app = express();
-let port = process.env.PORT || 3002;
+// Start from port 3000 and find available port
+let port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cookieParser());
+app.use(cors({
+  origin: [process.env.FRONTEND_URL || 'http://localhost:5174', 'http://localhost:5174'],
+  credentials: true
+}));
 app.use(express.json());
 
 // PostgreSQL connection
@@ -28,20 +38,8 @@ const createTables = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS domains (
         id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
+        name VARCHAR(100) NOT NULL UNIQUE,
         color VARCHAR(50) NOT NULL
-      )
-    `);
-
-    // Create news table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS news (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        domain VARCHAR(100) NOT NULL,
-        content TEXT NOT NULL,
-        author VARCHAR(100) NOT NULL,
-        date DATE NOT NULL DEFAULT CURRENT_DATE
       )
     `);
 
@@ -58,6 +56,20 @@ const createTables = async () => {
       )
     `);
 
+    // Create news table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS news (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        domain VARCHAR(100) NOT NULL,
+        content TEXT NOT NULL,
+        author VARCHAR(100) NOT NULL,
+        date DATE NOT NULL DEFAULT CURRENT_DATE,
+        editors TEXT[] DEFAULT '{}', -- Store emails of users who can edit this article
+        FOREIGN KEY (domain) REFERENCES domains(name)
+      )
+    `);
+
     // Create subscribers table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS subscribers (
@@ -65,6 +77,19 @@ const createTables = async () => {
         email VARCHAR(100) UNIQUE NOT NULL,
         name VARCHAR(100),
         subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create audit log table for connection/disconnection tracking
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        action VARCHAR(50) NOT NULL, -- 'login', 'logout'
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     `);
 
@@ -91,13 +116,14 @@ const seedDatabase = async () => {
 
     // Insert sample domains
     const domains = [
-      { name: 'Technology', color: 'bg-blue-500' },
-      { name: 'Business', color: 'bg-green-500' },
-      { name: 'Design', color: 'bg-purple-500' },
-      { name: 'Culture', color: 'bg-orange-500' },
-      { name: 'Science', color: 'bg-red-500' }
+      { name: 'Technology', color: '#3b82f6' },      // Blue
+      { name: 'Business', color: '#22c55e' },        // Green
+      { name: 'Design', color: '#a855f7' },          // Purple
+      { name: 'Culture', color: '#f97316' },         // Orange
+      { name: 'Science', color: '#ef4444' }          // Red
     ];
 
+    console.log('  📁 Inserting domains...');
     for (const domain of domains) {
       await pool.query(
         'INSERT INTO domains (name, color) VALUES ($1, $2)',
@@ -105,18 +131,19 @@ const seedDatabase = async () => {
       );
     }
 
-    // Insert sample users with correct roles
+    // Insert sample users with bcrypt hashed passwords
     const users = [
-      { username: 'tech_contributor', email: 'tech@company.com', password: 'tech123', role: 'contributor', domain: 'Technology' },
-      { username: 'business_contributor', email: 'business@company.com', password: 'business123', role: 'contributor', domain: 'Business' },
-      { username: 'design_contributor', email: 'design@company.com', password: 'design123', role: 'contributor', domain: 'Design' },
-      { username: 'culture_contributor', email: 'culture@company.com', password: 'culture123', role: 'contributor', domain: 'Culture' },
-      { username: 'science_contributor', email: 'science@company.com', password: 'science123', role: 'contributor', domain: 'Science' },
-      { username: 'admin', email: 'admin@company.com', password: 'admin123', role: 'admin', domain: null },
-      { username: 'user1', email: 'user1@company.com', password: 'user123', role: 'user', domain: null },
-      { username: 'user2', email: 'user2@company.com', password: 'user123', role: 'user', domain: null }
+      { username: 'tech_contributor', email: 'tech@company.com', password: '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.PZvO.S', role: 'contributor', domain: 'Technology' }, // tech123
+      { username: 'business_contributor', email: 'business@company.com', password: '$2b$12$IuOYa/0K7Chf.ZbK4.0EIuBbEyqDLs1wDBg7Hu8Sf0s0p6rdFm.HS', role: 'contributor', domain: 'Business' }, // business123
+      { username: 'design_contributor', email: 'design@company.com', password: '$2b$12$r1K/.F0HcjDXXA/SOFTRu.1Hq8RYxyHNLw84U6MCHB5GO4NszCxjW', role: 'contributor', domain: 'Design' }, // design123
+      { username: 'culture_contributor', email: 'culture@company.com', password: '$2b$12$U0G49hBD1qDE8bGS/sDcdeR5mo0oOjiKspX6jHwH9cGP7nQOKUuja', role: 'contributor', domain: 'Culture' }, // culture123
+      { username: 'science_contributor', email: 'science@company.com', password: '$2b$12$s/JMO64.z0OMQgMCbHdHOupkyjsnyF8PoF5Hf5YYqEvJE5NGuoHcq', role: 'contributor', domain: 'Science' }, // science123
+      { username: 'admin', email: 'admin@company.com', password: '$2b$12$nL/yH5uF25EO8xppFqzYkeubscnT651HE.tUJdKYXLn7Fxd5f0wQG', role: 'admin', domain: null }, // admin123
+      { username: 'user1', email: 'user1@company.com', password: '$2b$12$cwGnpqf.et9d1ZPog9.BweijrrjKX5uVMGBj6LQxODR/Va7RyCB0y', role: 'user', domain: null }, // user123
+      { username: 'user2', email: 'user2@company.com', password: '$2b$12$cwGnpqf.et9d1ZPog9.BweijrrjKX5uVMGBj6LQxODR/Va7RyCB0y', role: 'user', domain: null } // user123
     ];
 
+    console.log('  👤 Inserting users...');
     for (const user of users) {
       await pool.query(
         'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5)',
@@ -133,6 +160,7 @@ const seedDatabase = async () => {
       { email: 'subscriber5@example.com', name: 'Michael Wilson' }
     ];
 
+    console.log('  📧 Inserting subscribers...');
     for (const subscriber of subscribers) {
       await pool.query(
         'INSERT INTO subscribers (email, name) VALUES ($1, $2)',
@@ -149,61 +177,62 @@ const seedDatabase = async () => {
         author: 'tech_contributor'
       },
       {
-        title: 'Revolutionary Quantum Computing Chip Announced',
+        title: 'Revolutionary Battery Technology Promises Week-Long Charge',
         domain: 'Technology',
-        content: 'A breakthrough in quantum computing has been achieved with a new chip that can perform calculations 100 times faster than current processors. This could revolutionize fields from cryptography to drug discovery.',
+        content: 'Scientists have announced a breakthrough in battery technology that could keep devices charged for up to a week. The new solid-state batteries are also safer and charge faster than current lithium-ion technology.',
         author: 'tech_contributor'
       },
       {
-        title: 'Company Expansion to European Markets',
+        title: 'Global Markets Reach All-Time High Amid Economic Recovery',
         domain: 'Business',
-        content: 'We are excited to announce our expansion into European markets. New offices will open in London, Paris, and Berlin by the end of the year, creating over 200 new jobs.',
+        content: 'Stock markets worldwide have reached unprecedented levels as economic indicators show strong recovery signals. Analysts predict continued growth through the next quarter.',
         author: 'business_contributor'
       },
       {
-        title: 'Quarterly Financial Results Exceed Expectations',
+        title: 'Startup Funding Reaches Record Levels in Q3',
         domain: 'Business',
-        content: 'Our Q3 results show strong growth across all sectors. Revenue increased by 25% compared to last year, and we\'ve exceeded our profitability targets for the second consecutive quarter.',
+        content: 'Venture capital investments hit a new quarterly record, with over $50 billion invested in startups globally. The technology sector continues to attract the largest share of funding.',
         author: 'business_contributor'
       },
       {
-        title: 'Redesigning Our Brand Identity',
+        title: 'Minimalist Design Trends Take Over Modern Architecture',
         domain: 'Design',
-        content: 'Our design team has been working hard to refresh our brand identity. The new look will be unveiled at our annual conference next month. Stay tuned for exciting updates!',
+        content: 'Architects are embracing minimalist principles, focusing on clean lines and sustainable materials. This trend is reshaping urban landscapes worldwide.',
         author: 'design_contributor'
       },
       {
-        title: 'New Collaboration Tools for Remote Teams',
+        title: 'Color Theory Innovations in Digital Media',
         domain: 'Design',
-        content: 'We\'ve partnered with leading software companies to bring you enhanced collaboration tools. These new features will improve productivity and communication for remote teams.',
+        content: 'New research in color theory is influencing digital design practices, leading to more accessible and emotionally resonant user interfaces.',
         author: 'design_contributor'
       },
       {
-        title: 'Employee Spotlight: Meet Our Engineering Team',
+        title: 'Cultural Exchange Programs See Surge in Participation',
         domain: 'Culture',
-        content: 'This month we\'re highlighting our amazing engineering team. Learn about their projects, challenges, and what makes them passionate about technology and innovation.',
+        content: 'International cultural exchange programs report a 40% increase in participants this year, fostering greater global understanding and cooperation.',
         author: 'culture_contributor'
       },
       {
-        title: 'New Wellness Program Launches Company-Wide',
+        title: 'Digital Art Galleries Transform Museum Experience',
         domain: 'Culture',
-        content: 'Starting next month, all employees will have access to our new wellness program, including mental health resources, fitness classes, and nutrition counseling.',
+        content: 'Museums worldwide are adopting virtual reality galleries, making art accessible to global audiences and creating immersive experiences.',
         author: 'culture_contributor'
-      },
-      {
-        title: 'Breakthrough in Renewable Energy Storage',
-        domain: 'Science',
-        content: 'Scientists have made a significant discovery in battery technology that could revolutionize renewable energy storage. The new method increases efficiency by 60% while reducing costs.',
-        author: 'science_contributor'
       },
       {
         title: 'Discovery of New Exoplanet with Potential for Life',
         domain: 'Science',
         content: 'Astronomers have identified a new exoplanet in the habitable zone of its star system. Initial analysis suggests it may have conditions suitable for life as we know it.',
         author: 'science_contributor'
+      },
+      {
+        title: 'Breakthrough in Quantum Computing Achieved',
+        domain: 'Science',
+        content: 'Scientists have successfully demonstrated quantum supremacy with a new processor that solves complex problems in minutes that would take traditional computers thousands of years.',
+        author: 'science_contributor'
       }
     ];
 
+    console.log('  📰 Inserting news articles...');
     for (const article of news) {
       await pool.query(
         'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE - CAST(RANDOM()*30 AS INTEGER))',
@@ -216,6 +245,136 @@ const seedDatabase = async () => {
     console.error('Error seeding database:', err);
   }
 };
+
+// Authentication Routes
+
+// Login route
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Find user by email
+    const userResult = await pool.query(
+      'SELECT id, username, email, password, role, domain FROM users WHERE email = $1',
+      [email]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Generate tokens
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    
+    // Log the login action for audit
+    const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    await pool.query(
+      'INSERT INTO audit_log (user_id, action, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
+      [user.id, 'login', ipAddress, req.headers['user-agent'] || 'Unknown']
+    );
+    
+    // Set cookies
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+      sameSite: 'lax'
+    });
+    
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      sameSite: 'lax'
+    });
+    
+    // Send response with user data (excluding password)
+    const userData = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      domain: user.domain
+    };
+    
+    res.json({
+      message: 'Login successful',
+      user: userData,
+      accessToken: accessToken
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Logout route
+app.post('/api/auth/logout', authenticateToken, async (req, res) => {
+  try {
+    // Clear cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+    
+    // Log the logout action for audit
+    const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    await pool.query(
+      'INSERT INTO audit_log (user_id, action, ip_address, user_agent) VALUES ($1, $2, $3, $4)',
+      [req.user.userId, 'logout', ipAddress, req.headers['user-agent'] || 'Unknown']
+    );
+    
+    res.json({ message: 'Logout successful' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Refresh token route
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'Refresh token required' });
+    }
+    
+    // Verify refresh token
+    const decoded = verifyRefreshToken(refreshToken);
+    
+    // Find user
+    const userResult = await pool.query(
+      'SELECT id, username, email, role, domain FROM users WHERE id = $1 AND email = $2',
+      [decoded.userId, decoded.email]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Invalid refresh token' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Generate new tokens
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+    
+    res.json({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(403).json({ error: 'Invalid refresh token' });
+  }
+});
 
 // API Routes
 
@@ -230,8 +389,8 @@ app.get('/api/domains', async (req, res) => {
   }
 });
 
-// Add a new domain
-app.post('/api/domains', async (req, res) => {
+// Add a new domain (admin only)
+app.post('/api/domains', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const { name, color } = req.body;
     const result = await pool.query(
@@ -245,8 +404,29 @@ app.post('/api/domains', async (req, res) => {
   }
 });
 
-// Delete a domain
-app.delete('/api/domains/:id', async (req, res) => {
+// Update a domain (admin only)
+app.put('/api/domains/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, color } = req.body;
+    const result = await pool.query(
+      'UPDATE domains SET name = $1, color = $2 WHERE id = $3 RETURNING *',
+      [name, color, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Domain not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete a domain (admin only)
+app.delete('/api/domains/:id', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM domains WHERE id = $1', [id]);
@@ -270,10 +450,12 @@ app.get('/api/news', async (req, res) => {
   }
 });
 
-// Add news
-app.post('/api/news', async (req, res) => {
+// Add news (contributors and admin)
+app.post('/api/news', authenticateToken, requireRole('contributor', 'admin'), async (req, res) => {
   try {
-    const { title, domain, content, author } = req.body;
+    const { title, domain, content } = req.body;
+    const author = req.user.username;
+    
     const result = await pool.query(
       'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
       [title, domain, content, author]
@@ -285,8 +467,99 @@ app.post('/api/news', async (req, res) => {
   }
 });
 
-// Delete news
-app.delete('/api/news/:id', async (req, res) => {
+// Update news (owner, editors, or admin)
+app.put('/api/news/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, domain, content } = req.body;
+    
+    // Check if user can edit this article
+    const newsResult = await pool.query(
+      'SELECT * FROM news WHERE id = $1',
+      [id]
+    );
+    
+    if (newsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'News article not found' });
+    }
+    
+    const article = newsResult.rows[0];
+    
+    // Check permissions:
+    // 1. Admin can edit any article
+    // 2. Author can edit their own article
+    // 3. Editors can edit articles they have been granted access to
+    const isAuthorized = req.user.role === 'admin' || 
+                         article.author === req.user.username || 
+                         article.editors.includes(req.user.email);
+    
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'You do not have permission to edit this article' });
+    }
+    
+    const result = await pool.query(
+      'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
+      [title, domain, content, id]
+    );
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Grant edit access to another contributor
+app.post('/api/news/:id/grant-edit', authenticateToken, requireRole('contributor', 'admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userEmail } = req.body; // Email of user to grant edit access
+    
+    // Check if the article exists
+    const newsResult = await pool.query(
+      'SELECT * FROM news WHERE id = $1',
+      [id]
+    );
+    
+    if (newsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'News article not found' });
+    }
+    
+    const article = newsResult.rows[0];
+    
+    // Check if current user is authorized to grant access (author or admin)
+    if (req.user.role !== 'admin' && article.author !== req.user.username) {
+      return res.status(403).json({ error: 'Only the author or admin can grant edit access' });
+    }
+    
+    // Check if target user exists and is a contributor
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE email = $1 AND role = $2',
+      [userEmail, 'contributor']
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found or not a contributor' });
+    }
+    
+    // Add user to editors array if not already there
+    if (!article.editors.includes(userEmail)) {
+      const newEditors = [...article.editors, userEmail];
+      await pool.query(
+        'UPDATE news SET editors = $1 WHERE id = $2',
+        [newEditors, id]
+      );
+    }
+    
+    res.json({ message: `Edit access granted to ${userEmail}` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete news (owner or admin)
+app.delete('/api/news/:id', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM news WHERE id = $1', [id]);
@@ -312,8 +585,8 @@ app.get('/api/news/search', async (req, res) => {
   }
 });
 
-// Get all users
-app.get('/api/users', async (req, res) => {
+// Get all users (admin only)
+app.get('/api/users', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const result = await pool.query('SELECT id, username, email, role, domain, created_at FROM users ORDER BY id');
     res.json(result.rows);
@@ -324,14 +597,22 @@ app.get('/api/users', async (req, res) => {
 });
 
 // Add user (admin only)
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const { username, email, password, role, domain } = req.body;
+    
+    // Hash password
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    
     const result = await pool.query(
       'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [username, email, password, role, domain]
+      [username, email, hashedPassword, role, domain]
     );
-    res.json(result.rows[0]);
+    
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = result.rows[0];
+    res.json(userWithoutPassword);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -339,7 +620,7 @@ app.post('/api/users', async (req, res) => {
 });
 
 // Update user (admin only)
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
     const { username, email, role, domain } = req.body;
@@ -347,7 +628,14 @@ app.put('/api/users/:id', async (req, res) => {
       'UPDATE users SET username = $1, email = $2, role = $3, domain = $4 WHERE id = $5 RETURNING *',
       [username, email, role, domain, id]
     );
-    res.json(result.rows[0]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = result.rows[0];
+    res.json(userWithoutPassword);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -355,7 +643,7 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 // Delete user (admin only)
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM users WHERE id = $1', [id]);
@@ -366,10 +654,57 @@ app.delete('/api/users/:id', async (req, res) => {
   }
 });
 
-// Get all subscribers
-app.get('/api/subscribers', async (req, res) => {
+// Get all subscribers (admin only)
+app.get('/api/subscribers', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM subscribers ORDER BY id');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Add subscriber
+app.post('/api/subscribers', authenticateToken, async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    const result = await pool.query(
+      'INSERT INTO subscribers (email, name) VALUES ($1, $2) RETURNING *',
+      [email, name]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete subscriber (admin only)
+app.delete('/api/subscribers/:id', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM subscribers WHERE id = $1', [id]);
+    res.json({ message: 'Subscriber deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Audit log routes (admin only)
+app.get('/api/audit', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        audit_log.*, 
+        users.username, 
+        users.email 
+      FROM audit_log 
+      JOIN users ON audit_log.user_id = users.id 
+      ORDER BY audit_log.timestamp DESC 
+      LIMIT 100
+    `);
     res.json(result.rows);
   } catch (err) {
     console.error(err);

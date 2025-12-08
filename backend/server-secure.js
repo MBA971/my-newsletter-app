@@ -242,7 +242,8 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
         console.log('✅ LOGIN SUCCESSFUL - Sending response');
         res.json({
             message: 'Login successful',
-            user: userWithoutPassword
+            user: userWithoutPassword,
+            accessToken: accessToken
         });
 
     } catch (error) {
@@ -373,6 +374,32 @@ app.delete('/api/domains/:id', authenticateToken, requireAdmin, async (req, res)
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Update a domain (admin only)
+app.put('/api/domains/:id', authenticateToken, requireAdmin, validateDomainCreation, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, color } = req.body;
+
+        const result = await pool.query(
+            'UPDATE domains SET name = $1, color = $2 WHERE id = $3 RETURNING *',
+            [name, color, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Domain not found' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err);
+        if (err.code === '23505') { // Unique violation
+            res.status(409).json({ error: 'Domain name already exists' });
+        } else {
+            res.status(500).json({ error: 'Server error' });
+        }
     }
 });
 

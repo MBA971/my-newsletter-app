@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, LogOut, Plus, Trash2, Calendar, Sun, Moon, Mail, Newspaper, Edit } from 'lucide-react';
+import { Search, User, LogOut, Plus, Trash2, Calendar, Sun, Moon, Mail, Newspaper, Edit, X } from 'lucide-react';
 import './App.css';
 
 const App = () => {
@@ -73,7 +73,7 @@ const App = () => {
   // Fetch public data from the backend
   const fetchPublicData = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
       console.log('Fetching public data from:', apiUrl);
       
       // Get token from localStorage if available
@@ -105,7 +105,7 @@ const App = () => {
   // Fetch admin data from the backend
   const fetchAdminData = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
       console.log('Fetching admin data from:', apiUrl);
       
       // Get token from localStorage
@@ -162,10 +162,12 @@ const App = () => {
   useEffect(() => {
     // Initialize currentUser from localStorage on app load
     const token = localStorage.getItem('accessToken');
+    console.log('Token from localStorage on init:', token);
     if (token) {
       // Verify token and set currentUser
       // This is a simplified approach - in a real app, you'd want to verify the token with the server
       try {
+        console.log('Token parts:', token.split('.'));
         const payload = JSON.parse(atob(token.split('.')[1]));
         if (payload.exp * 1000 > Date.now()) {
           setCurrentUser({
@@ -200,7 +202,7 @@ const App = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
       console.log('Logging in to:', `${apiUrl}/api/auth/login`);
       const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
@@ -213,11 +215,30 @@ const App = () => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Login response data:', data);
+        
+        // Check if accessToken exists in response
+        if (!data.hasOwnProperty('accessToken')) {
+          console.error('accessToken field missing from login response');
+          showNotification('Login failed: Missing access token', 'error');
+          return;
+        }
+        
         const user = data.user;
         const token = data.accessToken;
+        console.log('Extracted token:', token);
+        
+        // Validate token
+        if (!token || typeof token !== 'string') {
+          console.error('Invalid token received:', token);
+          showNotification('Login failed: Invalid access token', 'error');
+          return;
+        }
         
         // Store token in localStorage
+        console.log('Storing token in localStorage:', token);
         localStorage.setItem('accessToken', token);
+        console.log('Token stored, retrieving to verify:', localStorage.getItem('accessToken'));
         
         console.log('Login successful, user:', user);
         setCurrentUser(user);
@@ -226,10 +247,7 @@ const App = () => {
         showNotification(`Welcome back, ${user.username}!`, 'success');
         setLoginForm({ email: '', password: '' });
         
-        // Fetch admin data if user is admin
-        if (user.role === 'admin') {
-          await fetchAdminData();
-        }
+        // The useEffect hook will automatically fetch admin data when currentUser changes
       } else {
         const error = await response.json();
         console.error('Login failed:', error);
@@ -244,7 +262,7 @@ const App = () => {
   // Handle logout
   const handleLogout = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
       
       // Get token from localStorage
       const token = localStorage.getItem('accessToken');
@@ -277,7 +295,8 @@ const App = () => {
   };
 
   // Handle edit user
-  const handleEditUser = (user) => {
+  const handleEditUser = (user, e) => {
+    e.preventDefault();
     setEditingUser(user);
     setNewUser({
       username: user.username,
@@ -290,7 +309,8 @@ const App = () => {
   };
 
   // Handle edit domain
-  const handleEditDomain = (domain) => {
+  const handleEditDomain = (domain, e) => {
+    e.preventDefault();
     setEditingDomain(domain);
     setNewDomain({
       name: domain.name,
@@ -300,7 +320,8 @@ const App = () => {
   };
 
   // Handle edit news
-  const handleEditNews = (newsItem) => {
+  const handleEditNews = (newsItem, e) => {
+    e.preventDefault();
     setEditingNews(newsItem);
     setNewNews({
       title: newsItem.title,
@@ -333,7 +354,7 @@ const App = () => {
   const handleSaveNews = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
       
       if (editingNews) {
         // Edit existing news
@@ -391,7 +412,7 @@ const App = () => {
   // Handle deleting news
   const handleDeleteNews = async (id) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3002');
       const response = await fetch(`${apiUrl}/api/news/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -412,7 +433,7 @@ const App = () => {
   const handleSaveUser = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
       
       if (editingUser) {
         // Edit existing user
@@ -463,7 +484,7 @@ const App = () => {
   const handleSaveDomain = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
       
       if (editingDomain) {
         // Edit existing domain
@@ -510,10 +531,31 @@ const App = () => {
     }
   };
 
+  // Close domain modal
+  const closeDomainModal = () => {
+    setShowAddDomain(false);
+    setEditingDomain(null);
+    setNewDomain({ name: '', color: '#3b82f6' });
+  };
+
+  // Close user modal
+  const closeUserModal = () => {
+    setShowAddUser(false);
+    setEditingUser(null);
+    setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
+  };
+
+  // Close news modal
+  const closeNewsModal = () => {
+    setShowAddNews(false);
+    setEditingNews(null);
+    setNewNews({ title: '', content: '', domain: '' });
+  };
+
   // Handle deleting user
   const handleDeleteUser = async (id) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3002');
       const response = await fetch(`${apiUrl}/api/users/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -534,7 +576,7 @@ const App = () => {
   const handleAddDomain = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3002');
       const response = await fetch(`${apiUrl}/api/domains`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -558,7 +600,7 @@ const App = () => {
   // Handle deleting domain
   const handleDeleteDomain = async (id) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3002');
       const response = await fetch(`${apiUrl}/api/domains/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -865,57 +907,60 @@ const App = () => {
           </button>
         </div>
 
-        {/* Add Domain Form */}
+        {/* Domain Modal */}
         {showAddDomain && (
-          <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
-            <h3 style={{ marginBottom: 'var(--spacing-4)' }}>{editingDomain ? 'Edit Domain' : 'New Domain'}</h3>
-            <form onSubmit={handleSaveDomain}>
-              <div className="form-group">
-                <label className="form-label">Domain Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Technology, Business"
-                  value={newDomain.name}
-                  onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })}
-                  className="form-input"
-                  required
-                />
+          <div className="modal-overlay" onClick={closeDomainModal}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>{editingDomain ? 'Edit Domain' : 'New Domain'}</h3>
+                <button className="modal-close" onClick={closeDomainModal}>
+                  <X size={24} />
+                </button>
               </div>
-              <div className="form-group">
-                <label className="form-label">Color</label>
-                <div className="flex gap-3 flex-wrap">
-                  {availableColors.map(color => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      onClick={() => setNewDomain({ ...newDomain, color: color.value })}
-                      style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: 'var(--radius-lg)',
-                        backgroundColor: color.value,
-                        border: newDomain.color === color.value ? '4px solid var(--gray-800)' : '2px solid var(--border-color)',
-                        cursor: 'pointer',
-                        transition: 'all var(--transition-fast)'
-                      }}
-                      title={color.name}
-                    />
-                  ))}
+              <form onSubmit={handleSaveDomain}>
+                <div className="form-group">
+                  <label className="form-label">Domain Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Technology, Business"
+                    value={newDomain.name}
+                    onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })}
+                    className="form-input"
+                    required
+                  />
                 </div>
-              </div>
-              <div className="flex gap-3">
-                <button type="submit" className="btn btn-secondary">
-                  {editingDomain ? 'Update Domain' : 'Create Domain'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddDomain(false)}
-                  className="btn btn-outline"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+                <div className="form-group">
+                  <label className="form-label">Color</label>
+                  <div className="flex gap-3 flex-wrap">
+                    {availableColors.map(color => (
+                      <button
+                        key={color.value}
+                        type="button"
+                        onClick={() => setNewDomain({ ...newDomain, color: color.value })}
+                        style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: 'var(--radius-lg)',
+                          backgroundColor: color.value,
+                          border: newDomain.color === color.value ? '4px solid var(--gray-800)' : '2px solid var(--border-color)',
+                          cursor: 'pointer',
+                          transition: 'all var(--transition-fast)'
+                        }}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline" onClick={closeDomainModal}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-secondary">
+                    {editingDomain ? 'Update Domain' : 'Create Domain'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
@@ -950,7 +995,7 @@ const App = () => {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleEditDomain(domain)}
+                    onClick={(e) => handleEditDomain(domain, e)}
                     className="btn-icon"
                     style={{ color: 'var(--primary-600)' }}
                   >
@@ -983,10 +1028,16 @@ const App = () => {
           </button>
         </div>
 
-        {/* Add User Form */}
+        {/* User Modal */}
         {showAddUser && (
-          <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
-            <h3 style={{ marginBottom: 'var(--spacing-4)' }}>{editingUser ? 'Edit User' : 'New User'}</h3>
+          <div className="modal-overlay" onClick={closeUserModal}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>{editingUser ? 'Edit User' : 'New User'}</h3>
+                <button className="modal-close" onClick={closeUserModal}>
+                  <X size={24} />
+                </button>
+              </div>
             <form onSubmit={handleSaveUser}>
               <div className="form-group">
                 <label className="form-label">Username</label>
@@ -1048,21 +1099,18 @@ const App = () => {
                   </select>
                 </div>
               )}
-              <div className="flex gap-3">
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={closeUserModal}>
+                  Cancel
+                </button>
                 <button type="submit" className="btn btn-success">
                   {editingUser ? 'Update User' : 'Create User'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddUser(false)}
-                  className="btn btn-outline"
-                >
-                  Cancel
                 </button>
               </div>
             </form>
           </div>
-        )}
+        </div>
+      )}
 
         {/* Users Grid */}
         <div className="grid grid-cols-3">
@@ -1090,7 +1138,7 @@ const App = () => {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleEditUser(user)}
+                    onClick={(e) => handleEditUser(user, e)}
                     className="btn-icon"
                     style={{ color: 'var(--primary-600)' }}
                   >
@@ -1140,7 +1188,7 @@ const App = () => {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleEditNews(item)}
+                    onClick={(e) => handleEditNews(item, e)}
                     className="btn-icon"
                     style={{ color: 'var(--primary-600)' }}
                   >
@@ -1159,6 +1207,65 @@ const App = () => {
           ))}
         </div>
       </div>
+
+      {/* News Editing Modal */}
+      {showAddNews && (
+        <div className="modal-overlay" onClick={closeNewsModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{editingNews ? 'Edit Article' : 'New Article'}</h3>
+              <button className="modal-close" onClick={closeNewsModal}>
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveNews}>
+              <div className="form-group">
+                <label className="form-label">Title</label>
+                <input
+                  type="text"
+                  placeholder="Enter article title"
+                  value={newNews.title}
+                  onChange={(e) => setNewNews({ ...newNews, title: e.target.value })}
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Content</label>
+                <textarea
+                  placeholder="Write your article content..."
+                  value={newNews.content}
+                  onChange={(e) => setNewNews({ ...newNews, content: e.target.value })}
+                  className="form-textarea"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Domain</label>
+                <select
+                  value={newNews.domain}
+                  onChange={(e) => setNewNews({ ...newNews, domain: e.target.value })}
+                  className="form-select"
+                  required
+                >
+                  <option value="">Select domain</option>
+                  {domains.map(domain => (
+                    <option key={domain.id} value={domain.name}>{domain.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={closeNewsModal}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-success">
+                  {editingNews ? 'Update Article' : 'Publish Article'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 
