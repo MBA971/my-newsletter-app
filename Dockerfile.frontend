@@ -4,14 +4,14 @@ FROM node:20-alpine as build
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy frontend package files
+COPY frontend/package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy application code
-COPY . .
+# Copy frontend application code
+COPY frontend/ ./
 
 # Build the React application
 RUN npm run build
