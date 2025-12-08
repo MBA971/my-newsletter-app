@@ -354,7 +354,7 @@ const App = () => {
   const handleSaveNews = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       
       if (editingNews) {
         // Edit existing news
@@ -412,7 +412,7 @@ const App = () => {
   // Handle deleting news
   const handleDeleteNews = async (id) => {
     try {
-      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3002');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const response = await fetch(`${apiUrl}/api/news/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -433,7 +433,7 @@ const App = () => {
   const handleSaveUser = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       
       if (editingUser) {
         // Edit existing user
@@ -484,7 +484,7 @@ const App = () => {
   const handleSaveDomain = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       
       if (editingDomain) {
         // Edit existing domain
@@ -555,7 +555,7 @@ const App = () => {
   // Handle deleting user
   const handleDeleteUser = async (id) => {
     try {
-      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3002');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const response = await fetch(`${apiUrl}/api/users/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -600,7 +600,7 @@ const App = () => {
   // Handle deleting domain
   const handleDeleteDomain = async (id) => {
     try {
-      const apiUrl = typeof window !== 'undefined' ? 'http://localhost:3002' : (import.meta.env.VITE_API_URL || 'http://localhost:3002');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const response = await fetch(`${apiUrl}/api/domains/${id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -920,7 +920,10 @@ const App = () => {
                   <X size={24} />
                 </button>
               </div>
-              <form onSubmit={handleSaveDomain}>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveDomain(e);
+              }}>
                 <div className="form-group">
                   <label className="form-label">Domain Name</label>
                   <input
@@ -1049,7 +1052,10 @@ const App = () => {
                   <X size={24} />
                 </button>
               </div>
-            <form onSubmit={handleSaveUser}>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              handleSaveUser(e);
+            }}>
               <div className="form-group">
                 <label className="form-label">Username</label>
                 <input
@@ -1257,7 +1263,10 @@ const App = () => {
                 <X size={24} />
               </button>
             </div>
-            <form onSubmit={handleSaveNews}>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              handleSaveNews(e);
+            }}>
               <div className="form-group">
                 <label className="form-label">Title</label>
                 <input
