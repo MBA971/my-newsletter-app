@@ -7,17 +7,14 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm install --only=production
+# Install all dependencies (both production and development)
+RUN npm ci
 
 # Copy application code
 COPY . .
 
-# Expose port
-EXPOSE 3002
+# Expose port for Vite development server
+EXPOSE 5173
 
-# Add a label to force rebuild
-LABEL version="1.2.1"
-
-# Start the secure backend server
-CMD ["node", "server-secure.js"]
+# Start the Vite development server
+CMD ["npm", "run", "dev", "--", "--host"]
