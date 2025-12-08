@@ -10,7 +10,7 @@ export default defineConfig({
   },
   // Ensure the build outputs to the correct directory
   build: {
-    outDir: '../dist',
+    outDir: './dist',
     emptyOutDir: true
   }
 })
