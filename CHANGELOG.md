@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2025-12-08
+
+### Added
+- New debugging and analysis scripts for user and news ownership verification
+- Database migration utilities for author ID consistency
+
+### Changed
+- Improved API URL configuration for Docker environments
+- Enhanced contributor view with better UI/UX
+- Updated database seeding process with more robust data handling
+
+### Fixed
+- API endpoint URL inconsistencies in Docker deployments
+- Modal refresh issues when editing content
+- Contributor view functionality for news management
+
 ## [1.2.0] - 2025-12-04
 
 ### Added
