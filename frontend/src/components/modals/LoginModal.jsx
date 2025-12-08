@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Mail, Lock } from 'lucide-react';
+import { X, Mail, Lock, Info } from 'lucide-react';
 
 const LoginModal = ({ show, onClose, onLogin, loginForm, setLoginForm }) => {
     if (!show) return null;
@@ -12,6 +12,10 @@ const LoginModal = ({ show, onClose, onLogin, loginForm, setLoginForm }) => {
                     <button onClick={onClose} className="btn-icon">
                         <X size={20} />
                     </button>
+                </div>
+                <div className="text-center text-sm text-gray-500 mb-2 flex items-center justify-center">
+                    <Info size={14} className="mr-1" />
+                    Version 1.2.1
                 </div>
                 <form onSubmit={onLogin} className="modal-body">
                     <div className="form-group">
