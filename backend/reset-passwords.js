@@ -18,9 +18,19 @@ const pool = new Pool({
 
 // New passwords to set
 const newPasswords = {
+    // Admin
     'admin@company.com': 'admin123',
+
+    // Contributors
     'hiring@company.com': 'hiring123',
-    'events@company.com': 'event123'
+    'events@company.com': 'event123',
+    'journey@company.com': 'journey123',
+    'comm@company.com': 'comm123',
+    'admin.contributor@company.com': 'admin.contrib123',
+
+    // Regular users
+    'john.doe@company.com': 'user123',
+    'jane.smith@company.com': 'user123'
 };
 
 async function resetPasswords() {
@@ -28,46 +38,46 @@ async function resetPasswords() {
         console.log('Connecting to database...');
         const client = await pool.connect();
         console.log('✅ Connected to database');
-        
+
         // Check current users
         console.log('\n--- Current users ---');
         const usersResult = await client.query(
             'SELECT id, email, role FROM users ORDER BY id'
         );
-        
+
         console.log(`Found ${usersResult.rows.length} users:`);
         for (const user of usersResult.rows) {
             console.log(`- ${user.id}: ${user.email} (${user.role})`);
         }
-        
+
         // Salt rounds
         const saltRounds = process.env.BCRYPT_ROUNDS ? parseInt(process.env.BCRYPT_ROUNDS) : 12;
         console.log(`\nUsing bcrypt salt rounds: ${saltRounds}`);
-        
+
         // Reset passwords for specific users
         console.log('\n--- Resetting passwords ---');
         for (const [email, password] of Object.entries(newPasswords)) {
             console.log(`\nResetting password for ${email}...`);
-            
+
             // Hash the new password
             const hashedPassword = await bcrypt.hash(password, saltRounds);
             console.log(`  Generated hash (length: ${hashedPassword.length}): ${hashedPassword.substring(0, 20)}...`);
-            
+
             // Update the user's password
             const updateResult = await client.query(
                 'UPDATE users SET password = $1 WHERE email = $2 RETURNING id, email',
                 [hashedPassword, email]
             );
-            
+
             if (updateResult.rows.length > 0) {
                 console.log(`  ✅ Password updated for ${updateResult.rows[0].email} (ID: ${updateResult.rows[0].id})`);
-                
+
                 // Verify the new password works
                 const verifyResult = await client.query(
                     'SELECT password FROM users WHERE email = $1',
                     [email]
                 );
-                
+
                 if (verifyResult.rows.length > 0) {
                     const isValid = await bcrypt.compare(password, verifyResult.rows[0].password);
                     console.log(`  🔍 Verification: ${isValid ? '✅ SUCCESS' : '❌ FAILED'}`);
@@ -76,7 +86,7 @@ async function resetPasswords() {
                 console.log(`  ⚠️  User ${email} not found in database`);
             }
         }
-        
+
         console.log('\n--- Final verification ---');
         // Test all updated passwords
         for (const [email, password] of Object.entries(newPasswords)) {
@@ -84,7 +94,7 @@ async function resetPasswords() {
                 'SELECT id, email, password, role FROM users WHERE email = $1',
                 [email]
             );
-            
+
             if (testResult.rows.length > 0) {
                 const user = testResult.rows[0];
                 const isValid = await bcrypt.compare(password, user.password);
@@ -93,10 +103,10 @@ async function resetPasswords() {
                 console.log(`${email}: ⚠️  Not found`);
             }
         }
-        
+
         client.release();
         console.log('\n✅ Password reset completed successfully');
-        
+
     } catch (error) {
         console.error('❌ Error:', error.message);
         console.error('Stack:', error.stack);

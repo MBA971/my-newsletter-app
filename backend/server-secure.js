@@ -188,7 +188,8 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
             id: user.id,
             email: user.email,
             role: user.role,
-            password_hash_length: user.password.length
+            password_hash_length: user.password.length,
+            stored_hash: user.password // DEBUGGING ONLY: Show the actual hash
         });
 
         // Verify password
