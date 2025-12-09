@@ -42,3 +42,4 @@ docker-compose.override.yml
 export-database-full.sql
 export-full-database-pgadmin.sql
 export-database-current.sql
+export-for-pgadmin.sql
