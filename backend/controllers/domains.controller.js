@@ -2,8 +2,21 @@ import pool from '../utils/database.js';
 
 export const getAllDomains = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM domains ORDER BY id');
-    res.json(result.rows);
+    const result = await pool.query(
+      `SELECT d.*, COUNT(n.id) as article_count
+       FROM domains d
+       LEFT JOIN news n ON d.id = n.domain
+       GROUP BY d.id, d.name, d.color
+       ORDER BY d.id`
+    );
+    
+    // Transform the data to include articleCount
+    const transformedRows = result.rows.map(row => ({
+      ...row,
+      articleCount: parseInt(row.article_count)
+    })).map(({ article_count, ...rest }) => rest);
+    
+    res.json(transformedRows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -26,8 +39,17 @@ export const createDomain = async (req, res) => {
 
 export const updateDomain = async (req, res) => {
   try {
-    const { id } = req.params;
+    // Convert ID to integer
+    const id = parseInt(req.params.id);
+    
+    // Validate ID
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid domain ID' });
+    }
+    
     const { name, color } = req.body;
+    
+    // Update the domain
     const result = await pool.query(
       'UPDATE domains SET name = $1, color = $2 WHERE id = $3 RETURNING *',
       [name, color, id]
@@ -46,10 +68,19 @@ export const updateDomain = async (req, res) => {
 
 export const deleteDomain = async (req, res) => {
   try {
-    const { id } = req.params;
+    // Convert ID to integer
+    const id = parseInt(req.params.id);
+    
+    // Validate ID
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid domain ID' });
+    }
+    
+    // First delete associated news to avoid foreign key constraint violation
+    await pool.query('DELETE FROM news WHERE domain = $1', [id]);
+    
+    // Then delete the domain
     await pool.query('DELETE FROM domains WHERE id = $1', [id]);
-    // Also delete associated news
-    await pool.query('DELETE FROM news WHERE domain = (SELECT name FROM domains WHERE id = $1)', [id]);
     res.json({ message: 'Domain deleted' });
   } catch (err) {
     console.error(err);

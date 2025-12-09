@@ -18,15 +18,32 @@ export const login = async (req, res) => {
     
     const user = userResult.rows[0];
     
+    // Convert domain ID to domain name if domain exists
+    let domainName = null;
+    if (user.domain) {
+      const domainResult = await pool.query(
+        'SELECT name FROM domains WHERE id = $1',
+        [user.domain]
+      );
+      if (domainResult.rows.length > 0) {
+        domainName = domainResult.rows[0].name;
+      }
+    }
+    
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
-    // Generate tokens
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    // Generate tokens with domain name instead of ID
+    const userWithDomainName = {
+      ...user,
+      domain: domainName
+    };
+    
+    const accessToken = generateAccessToken(userWithDomainName);
+    const refreshToken = generateRefreshToken(userWithDomainName);
     
     // Log the login action for audit
     const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
@@ -56,12 +73,8 @@ export const login = async (req, res) => {
       username: user.username,
       email: user.email,
       role: user.role,
-      domain: user.domain
+      domain: domainName
     };
-    
-    console.log('Sending login response with accessToken:', accessToken);
-    console.log('AccessToken type:', typeof accessToken);
-    console.log('AccessToken length:', accessToken ? accessToken.length : 'null');
     
     const response = {
       message: 'Login successful',
@@ -69,19 +82,7 @@ export const login = async (req, res) => {
       accessToken: accessToken
     };
     
-    console.log('Full response object:', response);
-    
-    // Try to stringify the response to check for serialization issues
-    try {
-      const responseString = JSON.stringify(response);
-      console.log('Response stringified successfully, length:', responseString.length);
-    } catch (stringifyError) {
-      console.error('Error stringifying response:', stringifyError);
-    }
-    
-    console.log('About to send JSON response');
     res.json(response);
-    console.log('JSON response sent successfully');
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -131,9 +132,26 @@ export const refresh = async (req, res) => {
     
     const user = userResult.rows[0];
     
-    // Generate new tokens
-    const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
+    // Convert domain ID to domain name if domain exists
+    let domainName = null;
+    if (user.domain) {
+      const domainResult = await pool.query(
+        'SELECT name FROM domains WHERE id = $1',
+        [user.domain]
+      );
+      if (domainResult.rows.length > 0) {
+        domainName = domainResult.rows[0].name;
+      }
+    }
+    
+    // Generate new tokens with domain name
+    const userWithDomainName = {
+      ...user,
+      domain: domainName
+    };
+    
+    const newAccessToken = generateAccessToken(userWithDomainName);
+    const newRefreshToken = generateRefreshToken(userWithDomainName);
     
     res.json({
       accessToken: newAccessToken,

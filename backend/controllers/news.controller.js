@@ -1,9 +1,21 @@
-import pool from '../utils/database.js';
+ import pool from '../utils/database.js';
 
 export const getAllNews = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM news ORDER BY date DESC');
-    res.json(result.rows);
+    const result = await pool.query(
+      `SELECT n.*, d.name as domain_name 
+       FROM news n 
+       JOIN domains d ON n.domain = d.id 
+       ORDER BY n.date DESC`
+    );
+    
+    // Transform the data to match the old format (domain as name instead of ID)
+    const transformedRows = result.rows.map(row => ({
+      ...row,
+      domain: row.domain_name
+    })).map(({ domain_name, ...rest }) => rest);
+    
+    res.json(transformedRows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -12,8 +24,25 @@ export const getAllNews = async (req, res) => {
 
 export const createNews = async (req, res) => {
   try {
-    const { title, domain, content } = req.body;
+    let { title, domain, content } = req.body;
     const author = req.user.username;
+
+    // Convert domain name to domain ID if domain is provided as a name
+    if (domain && typeof domain === 'string') {
+      console.log(`[DEBUG] Converting domain name '${domain}' to ID`);
+      const domainResult = await pool.query(
+        'SELECT id FROM domains WHERE name = $1',
+        [domain]
+      );
+      console.log(`[DEBUG] Domain lookup result:`, domainResult.rows);
+      if (domainResult.rows.length > 0) {
+        domain = domainResult.rows[0].id;
+        console.log(`[DEBUG] Converted domain to ID: ${domain}`);
+      } else {
+        console.log(`[DEBUG] Domain '${domain}' not found, setting to null`);
+        domain = null;
+      }
+    }
 
     const result = await pool.query(
       'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
@@ -27,9 +56,16 @@ export const createNews = async (req, res) => {
 };
 
 export const updateNews = async (req, res) => {
+  console.log('[DEBUG] updateNews function called');
   try {
-    const { id } = req.params;
-    const { title, domain, content } = req.body;
+    // Convert ID to integer
+    const id = parseInt(req.params.id);
+    let { title, domain, content } = req.body;
+
+    // Validate ID
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid news ID' });
+    }
 
     // Check if user can edit this article
     console.log(`[DEBUG] Update News - Received ID: ${id} (Type: ${typeof id})`);
@@ -59,6 +95,36 @@ export const updateNews = async (req, res) => {
       return res.status(403).json({ error: 'You do not have permission to edit this article' });
     }
 
+    console.log(`[DEBUG] Before domain conversion - domain:`, domain, `type:`, typeof domain);
+
+    // Convert domain name to domain ID if domain is provided as a name
+    if (domain && typeof domain === 'string') {
+      console.log(`[DEBUG] Converting domain name '${domain}' to ID`);
+      const domainResult = await pool.query(
+        'SELECT id FROM domains WHERE name = $1',
+        [domain]
+      );
+      console.log(`[DEBUG] Domain lookup result:`, domainResult.rows);
+      if (domainResult.rows.length > 0) {
+        domain = domainResult.rows[0].id;
+        console.log(`[DEBUG] Converted domain to ID: ${domain}`);
+      } else {
+        console.log(`[DEBUG] Domain '${domain}' not found, setting to null`);
+        domain = null;
+      }
+    }
+
+    // Ensure domain is an integer if it exists
+    if (domain !== null && domain !== undefined) {
+      const domainId = parseInt(domain);
+      if (isNaN(domainId)) {
+        return res.status(400).json({ error: 'Invalid domain ID' });
+      }
+      domain = domainId;
+    }
+
+    console.log(`[DEBUG] After domain conversion - domain:`, domain, `type:`, typeof domain);
+
     const result = await pool.query(
       'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
       [title, domain, content, id]
@@ -73,7 +139,13 @@ export const updateNews = async (req, res) => {
 
 export const deleteNews = async (req, res) => {
   try {
-    const { id } = req.params;
+    // Convert ID to integer
+    const id = parseInt(req.params.id);
+    
+    // Validate ID
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid news ID' });
+    }
 
     // Check if user can delete this article
     const newsResult = await pool.query(
@@ -123,7 +195,14 @@ export const searchNews = async (req, res) => {
 
 export const grantEditAccess = async (req, res) => {
   try {
-    const { id } = req.params;
+    // Convert ID to integer
+    const id = parseInt(req.params.id);
+    
+    // Validate ID
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid news ID' });
+    }
+    
     const { userEmail } = req.body; // Email of user to grant edit access
 
     // Check if the article exists

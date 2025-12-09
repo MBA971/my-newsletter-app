@@ -26,7 +26,14 @@ export const createSubscriber = async (req, res) => {
 
 export const deleteSubscriber = async (req, res) => {
   try {
-    const { id } = req.params;
+    // Convert ID to integer
+    const id = parseInt(req.params.id);
+    
+    // Validate ID
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid subscriber ID' });
+    }
+    
     await pool.query('DELETE FROM subscribers WHERE id = $1', [id]);
     res.json({ message: 'Subscriber deleted' });
   } catch (err) {
