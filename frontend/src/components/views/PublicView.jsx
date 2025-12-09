@@ -42,7 +42,7 @@ const PublicView = ({ news, domains, isLoading }) => {
         );
 
         if (filterDomain === 'all') return filtered;
-        return filtered.filter(n => n.domain === filterDomain);
+        return filtered.filter(n => (n.domain_name || n.domain) === filterDomain);
     };
 
     const filteredNews = getFilteredNews();
@@ -138,11 +138,11 @@ const PublicView = ({ news, domains, isLoading }) => {
                                         <span
                                             className="badge"
                                             style={{
-                                                backgroundColor: getDomainColor(item.domain) + '20',
-                                                color: getDomainColor(item.domain)
+                                                backgroundColor: getDomainColor(item.domain_name || item.domain) + '20',
+                                                color: getDomainColor(item.domain_name || item.domain)
                                             }}
                                         >
-                                            {item.domain}
+                                            {item.domain_name || item.domain}
                                         </span>
                                         {isNewArticle(item.date) && (
                                             <span className="badge badge-success">New</span>

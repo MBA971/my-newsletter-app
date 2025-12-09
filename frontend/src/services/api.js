@@ -35,7 +35,7 @@ export const auth = {
         });
 
         if (!response.ok) {
-            const error = await response.json();
+            const error = await response.json().catch(() => ({}));
             throw new Error(error.error || 'Login failed');
         }
 
@@ -75,7 +75,17 @@ export const domains = {
             headers: getHeaders(true),
             body: JSON.stringify(domainData),
         });
-        if (!response.ok) throw new Error('Failed to create domain');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.details) {
+                // Extract validation error messages
+                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                throw new Error(messages || 'Failed to create domain');
+            }
+            throw new Error('Failed to create domain');
+        }
+        
         return response.json();
     },
 
@@ -85,7 +95,17 @@ export const domains = {
             headers: getHeaders(true),
             body: JSON.stringify(domainData),
         });
-        if (!response.ok) throw new Error('Failed to update domain');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.details) {
+                // Extract validation error messages
+                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                throw new Error(messages || 'Failed to update domain');
+            }
+            throw new Error('Failed to update domain');
+        }
+        
         return response.json();
     },
 
@@ -94,7 +114,15 @@ export const domains = {
             method: 'DELETE',
             headers: getHeaders(true),
         });
-        if (!response.ok) throw new Error('Failed to delete domain');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.error) {
+                throw new Error(errorData.error);
+            }
+            throw new Error('Failed to delete domain');
+        }
+        
         return response.json();
     }
 };
@@ -109,13 +137,31 @@ export const news = {
         return response.json();
     },
 
+    getById: async (id) => {
+        const response = await fetch(`${API_URL}/api/news/${id}`, {
+            headers: getHeaders(!!localStorage.getItem('accessToken'))
+        });
+        if (!response.ok) throw new Error('Failed to fetch news');
+        return response.json();
+    },
+
     create: async (newsData) => {
         const response = await fetch(`${API_URL}/api/news`, {
             method: 'POST',
             headers: getHeaders(true),
             body: JSON.stringify(newsData),
         });
-        if (!response.ok) throw new Error('Failed to create news');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.details) {
+                // Extract validation error messages
+                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                throw new Error(messages || 'Failed to create news');
+            }
+            throw new Error('Failed to create news');
+        }
+        
         return response.json();
     },
 
@@ -125,7 +171,17 @@ export const news = {
             headers: getHeaders(true),
             body: JSON.stringify(newsData),
         });
-        if (!response.ok) throw new Error('Failed to update news');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.details) {
+                // Extract validation error messages
+                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                throw new Error(messages || 'Failed to update news');
+            }
+            throw new Error('Failed to update news');
+        }
+        
         return response.json();
     },
 
@@ -155,7 +211,17 @@ export const users = {
             headers: getHeaders(true),
             body: JSON.stringify(userData),
         });
-        if (!response.ok) throw new Error('Failed to create user');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.details) {
+                // Extract validation error messages
+                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                throw new Error(messages || 'Failed to create user');
+            }
+            throw new Error('Failed to create user');
+        }
+        
         return response.json();
     },
 
@@ -165,7 +231,17 @@ export const users = {
             headers: getHeaders(true),
             body: JSON.stringify(userData),
         });
-        if (!response.ok) throw new Error('Failed to update user');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.details) {
+                // Extract validation error messages
+                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                throw new Error(messages || 'Failed to update user');
+            }
+            throw new Error('Failed to update user');
+        }
+        
         return response.json();
     },
 
@@ -185,7 +261,15 @@ export const subscribers = {
         const response = await fetch(`${API_URL}/api/subscribers`, {
             headers: getHeaders(true),
         });
-        if (!response.ok) throw new Error('Failed to fetch subscribers');
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.error) {
+                throw new Error(errorData.error);
+            }
+            throw new Error('Failed to fetch subscribers');
+        }
+        
         return response.json();
     }
 };

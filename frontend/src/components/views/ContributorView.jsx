@@ -9,15 +9,24 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
     const [formData, setFormData] = useState({ title: '', content: '' });
 
     // Filter news for this contributor
-    const contributorNews = news.filter(item =>
-        item.domain === currentUser.domain
-    );
+    // For admins in contributor view, show only articles they created
+    // For contributors, filter by their domain
+    const contributorNews = currentUser.role === 'admin' 
+        ? news.filter(item => item.author === currentUser.username)
+        : news.filter(item => item.domain === currentUser.domain);
 
     // Create domainColors map for NewsModal (required prop)
     const domainColors = domains.reduce((acc, d) => ({ ...acc, [d.name]: d.color }), {});
 
     const getDomainColor = (domainName) => {
         return domainColors[domainName] || '#3b82f6';
+    };
+
+    // Get domain name by ID
+    const getDomainNameById = (domainId) => {
+        if (!domains || !Array.isArray(domains)) return '';
+        const domain = domains.find(d => d.id === domainId);
+        return domain ? domain.name : '';
     };
 
     const handleAddNew = () => {
@@ -42,7 +51,8 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
         // Prepare news object
         const newsItem = {
             ...formData,
-            domain: currentUser.domain, // Force domain for contributor
+            // For contributors, force their domain. For admins, use the selected domain from formData
+            domain: currentUser.role === 'contributor' ? currentUser.domain : formData.domain,
             author: currentUser.username
         };
 
@@ -96,11 +106,11 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
                                         <span
                                             className="badge"
                                             style={{
-                                                backgroundColor: getDomainColor(item.domain) + '20',
-                                                color: getDomainColor(item.domain)
+                                                backgroundColor: getDomainColor(getDomainNameById(item.domain)) + '20',
+                                                color: getDomainColor(getDomainNameById(item.domain))
                                             }}
                                         >
-                                            {item.domain}
+                                            {getDomainNameById(item.domain)}
                                         </span>
                                         <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
                                             {new Date(item.date).toLocaleDateString()}
@@ -110,7 +120,7 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
                                     <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>{item.content}</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    {(currentUser.role === 'admin' || (item.author_id ? parseInt(item.author_id) === parseInt(currentUser.id) : item.author === currentUser.username)) && (
+                                    {(currentUser.role === 'admin' || item.author === currentUser.username) && (
                                         <>
                                             <button
                                                 onClick={() => handleEdit(item)}
@@ -144,6 +154,7 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
                 isEditing={!!editingNews}
                 currentUser={currentUser}
                 domainColors={domainColors}
+                domains={domains}
             />
         </div>
     );

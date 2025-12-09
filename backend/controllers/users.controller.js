@@ -32,15 +32,13 @@ export const createUser = async (req, res) => {
     const saltRounds = config.jwt.rounds;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Get domain ID from domain name
+    // Handle domain - now it should be an integer ID
     let domainId = null;
     if (domain) {
-      const domainResult = await pool.query(
-        'SELECT id FROM domains WHERE name = $1',
-        [domain]
-      );
-      if (domainResult.rows.length > 0) {
-        domainId = domainResult.rows[0].id;
+      // Ensure domain is an integer
+      domainId = parseInt(domain);
+      if (isNaN(domainId)) {
+        return res.status(400).json({ error: 'Invalid domain ID' });
       }
     }
 
@@ -95,15 +93,13 @@ export const updateUser = async (req, res) => {
       domain = req.user.domain;
     }
 
-    // Get domain ID from domain name
+    // Handle domain - now it should be an integer ID
     let domainId = null;
     if (domain) {
-      const domainResult = await pool.query(
-        'SELECT id FROM domains WHERE name = $1',
-        [domain]
-      );
-      if (domainResult.rows.length > 0) {
-        domainId = domainResult.rows[0].id;
+      // Ensure domain is an integer
+      domainId = parseInt(domain);
+      if (isNaN(domainId)) {
+        return res.status(400).json({ error: 'Invalid domain ID' });
       }
     }
 

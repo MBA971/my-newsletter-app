@@ -32,6 +32,11 @@ app.use('/api/users', usersRoutes);
 app.use('/api/subscribers', subscribersRoutes);
 app.use('/api/audit', auditRoutes);
 
+// Test route
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Test route working' });
+});
+
 // Seed database endpoint
 app.post('/api/seed', async (req, res) => {
   try {

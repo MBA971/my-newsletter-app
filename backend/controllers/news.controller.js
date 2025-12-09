@@ -1,4 +1,13 @@
- import pool from '../utils/database.js';
+import pool from '../utils/database.js';
+
+// Helper function to decode HTML entities in news content
+const decodeNewsContent = (newsItems) => {
+  return newsItems.map(item => ({
+    ...item,
+    content: item.content ? he.decode(item.content) : item.content,
+    title: item.title ? he.decode(item.title) : item.title
+  }));
+};
 
 export const getAllNews = async (req, res) => {
   try {
@@ -15,9 +24,57 @@ export const getAllNews = async (req, res) => {
       domain: row.domain_name
     })).map(({ domain_name, ...rest }) => rest);
     
-    res.json(transformedRows);
+    // Decode HTML entities in content and title
+    const decodedRows = decodeNewsContent(transformedRows);
+    
+    res.json(decodedRows);
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const getNewsById = async (req, res) => {
+  console.log('[DEBUG] getNewsById called with id:', req.params.id);
+  try {
+    const id = parseInt(req.params.id);
+    
+    // Validate ID
+    if (isNaN(id)) {
+      console.log('[DEBUG] Invalid news ID provided:', req.params.id);
+      return res.status(400).json({ error: 'Invalid news ID' });
+    }
+
+    console.log('[DEBUG] Querying database for news id:', id);
+    const result = await pool.query(
+      `SELECT n.*, d.name as domain_name 
+       FROM news n 
+       JOIN domains d ON n.domain = d.id 
+       WHERE n.id = $1`,
+      [id]
+    );
+    
+    console.log('[DEBUG] Database query result:', result.rows);
+    
+    if (result.rows.length === 0) {
+      console.log('[DEBUG] News article not found for id:', id);
+      return res.status(404).json({ error: 'News article not found' });
+    }
+    
+    // Transform the data to match the old format (domain as name instead of ID)
+    const transformedRow = {
+      ...result.rows[0],
+      domain: result.rows[0].domain_name
+    };
+    const { domain_name, ...finalRow } = transformedRow;
+    
+    // Decode HTML entities in content and title
+    const decodedRow = decodeNewsContent([finalRow])[0];
+    
+    console.log('[DEBUG] Returning news item:', decodedRow);
+    res.json(decodedRow);
+  } catch (err) {
+    console.error('[ERROR] getNewsById:', err);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -48,7 +105,10 @@ export const createNews = async (req, res) => {
       'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
       [title, domain, content, author]
     );
-    res.json(result.rows[0]);
+    
+    // Decode HTML entities in the returned data
+    const decodedResult = decodeNewsContent(result.rows)[0];
+    res.json(decodedResult);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -130,7 +190,9 @@ export const updateNews = async (req, res) => {
       [title, domain, content, id]
     );
 
-    res.json(result.rows[0]);
+    // Decode HTML entities in the returned data
+    const decodedResult = decodeNewsContent(result.rows)[0];
+    res.json(decodedResult);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -186,7 +248,10 @@ export const searchNews = async (req, res) => {
       `SELECT * FROM news WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 ORDER BY date DESC`,
       [`%${q}%`]
     );
-    res.json(result.rows);
+    
+    // Decode HTML entities in search results
+    const decodedRows = decodeNewsContent(result.rows);
+    res.json(decodedRows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

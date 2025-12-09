@@ -18,6 +18,7 @@ import {
 import {
     validateLogin,
     validateUserCreation,
+    validateUserUpdate,
     validateNewsCreation,
     validateDomainCreation,
     validateSubscriber
@@ -91,7 +92,7 @@ const createTables = async () => {
       CREATE TABLE IF NOT EXISTS news (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
-        domain VARCHAR(100) NOT NULL,
+        domain INTEGER NOT NULL REFERENCES domains(id),
         content TEXT NOT NULL,
         author VARCHAR(100) NOT NULL,
         author_id INTEGER,
@@ -107,7 +108,7 @@ const createTables = async () => {
         email VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'user',
-        domain VARCHAR(100),
+        domain INTEGER REFERENCES domains(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -328,7 +329,13 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // Get all domains (public)
 app.get('/api/domains', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM domains ORDER BY id');
+        const result = await pool.query(
+            `SELECT d.*, COUNT(n.id) as articleCount 
+             FROM domains d 
+             LEFT JOIN news n ON d.id = n.domain 
+             GROUP BY d.id 
+             ORDER BY d.id`
+        );
         res.json(result.rows);
     } catch (err) {
         console.error(err);
@@ -415,26 +422,91 @@ app.put('/api/domains/:id', authenticateToken, requireAdmin, validateDomainCreat
 // Get all news (public)
 app.get('/api/news', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM news ORDER BY date DESC');
-        res.json(result.rows);
+        const result = await pool.query(
+            `SELECT n.*, d.name as domain_name 
+             FROM news n 
+             JOIN domains d ON n.domain = d.id 
+             ORDER BY n.date DESC`
+        );
+        
+        // Transform the data to include domain_name and keep domain ID for consistency
+        const transformedRows = result.rows.map(row => ({
+            ...row,
+            domain_name: row.domain_name
+        }));
+        
+        res.json(transformedRows);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
-// Add news (contributor or admin)
-app.post('/api/news', authenticateToken, requireContributor, checkDomainAccess, validateNewsCreation, async (req, res) => {
+// Search news (public)
+app.get('/api/news/search', async (req, res) => {
     try {
-        const { title, domain, content } = req.body;
+        const { q } = req.query;
+        console.log(`[DEBUG] Search query: ${q}`);
+        
+        // Validate query parameter
+        if (!q || typeof q !== 'string' || q.trim() === '') {
+            return res.status(400).json({ error: 'Search query is required' });
+        }
+        
+        const result = await pool.query(
+            `SELECT n.*, d.name as domain_name 
+             FROM news n 
+             JOIN domains d ON n.domain = d.id 
+             WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 
+             ORDER BY date DESC`,
+            [`%${q.trim()}%`]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[ERROR] Search news:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Add news (contributor or admin)
+app.post('/api/news', authenticateToken, requireContributor, checkDomainAccess, validateNewsCreation, async (req, res) => {    try {
+        let { title, domain, content } = req.body;
         const author = req.user.username;
 
         // If contributor, force their domain
         const finalDomain = req.user.role === 'contributor' ? req.user.domain : domain;
 
+        // Convert domain name to domain ID if domain is provided as a name
+        if (finalDomain && typeof finalDomain === 'string') {
+            console.log(`[DEBUG] Converting domain name '${finalDomain}' to ID`);
+            const domainResult = await pool.query(
+                'SELECT id FROM domains WHERE name = $1',
+                [finalDomain]
+            );
+            console.log(`[DEBUG] Domain lookup result:`, domainResult.rows);
+            if (domainResult.rows.length > 0) {
+                domain = domainResult.rows[0].id;
+                console.log(`[DEBUG] Converted domain to ID: ${domain}`);
+            } else {
+                console.log(`[DEBUG] Domain '${finalDomain}' not found, setting to null`);
+                domain = null;
+            }
+        }
+
+        // Ensure domain is an integer if it exists
+        if (domain !== null && domain !== undefined) {
+            const domainId = parseInt(domain);
+            if (isNaN(domainId)) {
+                return res.status(400).json({ error: 'Invalid domain ID' });
+            }
+            domain = domainId;
+        }
+
+        console.log(`[DEBUG] After domain conversion - domain:`, domain, `type:`, typeof domain);
+
         const result = await pool.query(
             'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
-            [title, finalDomain, content, author]
+            [title, domain, content, author]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -444,11 +516,10 @@ app.post('/api/news', authenticateToken, requireContributor, checkDomainAccess, 
 });
 
 // Update news (contributor or admin)
-// Update news (contributor or admin)
 app.put('/api/news/:id', authenticateToken, requireContributor, checkDomainAccess, validateNewsCreation, async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, domain, content } = req.body;
+        let { title, domain, content } = req.body;
 
         console.log(`[DEBUG] News Update: User=${req.user.username} (${req.user.role}) vs Article ${id}`);
 
@@ -472,16 +543,52 @@ app.put('/api/news/:id', authenticateToken, requireContributor, checkDomainAcces
             }
 
             // Contributors cannot change the domain
-            const articleDomain = (newsItem.domain || '').trim();
-            const requestDomain = (domain || '').trim();
+            const articleDomain = newsItem.domain; // This is already an integer
+            const requestDomain = domain;
 
             // Note: checkDomainAccess middleware already checks if requestDomain matches user's domain
             // But we must also ensure we don't move an article OUT of our domain (if that was possible)
-            if (requestDomain !== req.user.domain) {
-                console.log(`[DEBUG] 403 Domain Mismatch: '${requestDomain}' !== '${req.user.domain}'`);
+            if (requestDomain !== undefined && requestDomain !== null && requestDomain !== articleDomain) {
+                console.log(`[DEBUG] 403 Domain Mismatch: '${requestDomain}' !== '${articleDomain}'`);
                 return res.status(403).json({ error: 'You cannot change the domain' });
             }
         }
+
+        // Handle domain conversion properly
+        // First, try to parse it as an integer (ID)
+        // If that fails, treat it as a domain name and look it up
+        if (domain !== undefined && domain !== null) {
+            console.log(`[DEBUG] Processing domain: '${domain}' (type: ${typeof domain})`);
+            
+            // Try to parse as integer first (assuming it's already an ID)
+            const domainAsInt = parseInt(domain, 10);
+            
+            if (!isNaN(domainAsInt)) {
+                // It's a valid integer, use it as the domain ID
+                domain = domainAsInt;
+                console.log(`[DEBUG] Using domain as ID: ${domain}`);
+            } else if (typeof domain === 'string' && domain.trim() !== '') {
+                // It's a string, try to look it up as a domain name
+                console.log(`[DEBUG] Converting domain name '${domain}' to ID`);
+                const domainResult = await pool.query(
+                    'SELECT id FROM domains WHERE name = $1',
+                    [domain.trim()]
+                );
+                console.log(`[DEBUG] Domain lookup result:`, domainResult.rows);
+                if (domainResult.rows.length > 0) {
+                    domain = domainResult.rows[0].id;
+                    console.log(`[DEBUG] Converted domain to ID: ${domain}`);
+                } else {
+                    console.log(`[DEBUG] Domain '${domain}' not found`);
+                    return res.status(400).json({ error: `Domain '${domain}' not found` });
+                }
+            } else {
+                // Invalid domain value
+                return res.status(400).json({ error: 'Invalid domain value' });
+            }
+        }
+
+        console.log(`[DEBUG] After domain conversion - domain:`, domain, `type:`, typeof domain);
 
         const result = await pool.query(
             'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
@@ -525,17 +632,58 @@ app.delete('/api/news/:id', authenticateToken, requireContributor, async (req, r
     }
 });
 
+// Get news by ID (public)
+app.get('/api/news/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        
+        // Validate ID
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'Invalid news ID' });
+        }
+
+        const result = await pool.query(
+            `SELECT n.*, d.name as domain_name 
+             FROM news n 
+             JOIN domains d ON n.domain = d.id 
+             WHERE n.id = $1`,
+            [id]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'News article not found' });
+        }
+        
+        // Return the data with both domain ID and domain name
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('[ERROR] getNewsById:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Search news (public)
 app.get('/api/news/search', async (req, res) => {
     try {
         const { q } = req.query;
+        console.log(`[DEBUG] Search query: ${q}`);
+        
+        // Validate query parameter
+        if (!q || typeof q !== 'string' || q.trim() === '') {
+            return res.status(400).json({ error: 'Search query is required' });
+        }
+        
         const result = await pool.query(
-            `SELECT * FROM news WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 ORDER BY date DESC`,
-            [`%${q}%`]
+            `SELECT n.*, d.name as domain_name 
+             FROM news n 
+             JOIN domains d ON n.domain = d.id 
+             WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 
+             ORDER BY date DESC`,
+            [`%${q.trim()}%`]
         );
         res.json(result.rows);
     } catch (err) {
-        console.error(err);
+        console.error('[ERROR] Search news:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -547,7 +695,12 @@ app.get('/api/news/search', async (req, res) => {
 // Get all users (admin only)
 app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const result = await pool.query('SELECT id, username, email, role, domain, created_at FROM users ORDER BY id');
+        const result = await pool.query(
+            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+             FROM users u 
+             LEFT JOIN domains d ON u.domain = d.id 
+             ORDER BY u.id`
+        );
         res.json(result.rows);
     } catch (err) {
         console.error(err);
@@ -558,16 +711,68 @@ app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
 // Add user (admin only)
 app.post('/api/users', authenticateToken, requireAdmin, validateUserCreation, async (req, res) => {
     try {
-        const { username, email, password, role, domain } = req.body;
+        let { username, email, password, role, domain } = req.body;
+
+        // For contributors, domain is required
+        if (role === 'contributor' && (!domain || domain.toString().trim() === '')) {
+            return res.status(400).json({ error: 'Domain is required for contributors' });
+        }
+
+        // Handle domain conversion properly
+        // First, try to parse it as an integer (ID)
+        // If that fails, treat it as a domain name and look it up
+        if (domain !== undefined && domain !== null && domain.toString().trim() !== '') {
+            console.log(`[DEBUG] Processing domain: '${domain}' (type: ${typeof domain})`);
+            
+            // Try to parse as integer first (assuming it's already an ID)
+            const domainAsInt = parseInt(domain, 10);
+            
+            if (!isNaN(domainAsInt)) {
+                // It's a valid integer, use it as the domain ID
+                domain = domainAsInt;
+                console.log(`[DEBUG] Using domain as ID: ${domain}`);
+            } else if (typeof domain === 'string' && domain.trim() !== '') {
+                // It's a string, try to look it up as a domain name
+                console.log(`[DEBUG] Converting domain name '${domain}' to ID`);
+                const domainResult = await pool.query(
+                    'SELECT id FROM domains WHERE name = $1',
+                    [domain.trim()]
+                );
+                console.log(`[DEBUG] Domain lookup result:`, domainResult.rows);
+                if (domainResult.rows.length > 0) {
+                    domain = domainResult.rows[0].id;
+                    console.log(`[DEBUG] Converted domain to ID: ${domain}`);
+                } else {
+                    console.log(`[DEBUG] Domain '${domain}' not found`);
+                    return res.status(400).json({ error: `Domain '${domain}' not found` });
+                }
+            } else {
+                // Invalid domain value
+                return res.status(400).json({ error: 'Invalid domain value' });
+            }
+        } else {
+            // If no domain provided or empty, set to null (for non-contributors)
+            domain = null;
+        }
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS) || 10);
 
         const result = await pool.query(
-            'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email, role, domain, created_at',
+            'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5) RETURNING id',
             [username, email, hashedPassword, role, domain]
         );
-        res.json(result.rows[0]);
+
+        // Fetch the created user with domain name for consistent response
+        const userResult = await pool.query(
+            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+             FROM users u 
+             LEFT JOIN domains d ON u.domain = d.id 
+             WHERE u.id = $1`,
+            [result.rows[0].id]
+        );
+
+        res.json(userResult.rows[0]);
     } catch (err) {
         console.error(err);
         if (err.code === '23505') { // Unique violation
@@ -579,15 +784,61 @@ app.post('/api/users', authenticateToken, requireAdmin, validateUserCreation, as
 });
 
 // Update user (admin or self)
-app.put('/api/users/:id', authenticateToken, async (req, res) => {
+app.put('/api/users/:id', authenticateToken, validateUserUpdate, async (req, res) => {
     try {
         const { id } = req.params;
-        const { username, email, role, domain, password } = req.body;
+        let { username, email, role, domain, password } = req.body;
 
         // Check permissions: Admin or Self
         const isSelf = parseInt(id) === parseInt(req.user.userId);
         if (req.user.role !== 'admin' && !isSelf) {
             return res.status(403).json({ error: 'Unauthorized to update this user' });
+        }
+
+        // For contributors, domain is required
+        // If role is being updated to contributor, domain must be provided
+        if (role === 'contributor' && (!domain || domain.toString().trim() === '')) {
+            return res.status(400).json({ error: 'Domain is required for contributors' });
+        }
+
+        // Handle domain conversion properly
+        // First, try to parse it as an integer (ID)
+        // If that fails, treat it as a domain name and look it up
+        if (domain !== undefined && domain !== null && domain.toString().trim() !== '') {
+            console.log(`[DEBUG] Processing domain: '${domain}' (type: ${typeof domain})`);
+            
+            // Try to parse as integer first (assuming it's already an ID)
+            const domainAsInt = parseInt(domain, 10);
+            
+            if (!isNaN(domainAsInt)) {
+                // It's a valid integer, use it as the domain ID
+                domain = domainAsInt;
+                console.log(`[DEBUG] Using domain as ID: ${domain}`);
+            } else if (typeof domain === 'string' && domain.trim() !== '') {
+                // It's a string, try to look it up as a domain name
+                console.log(`[DEBUG] Converting domain name '${domain}' to ID`);
+                const domainResult = await pool.query(
+                    'SELECT id FROM domains WHERE name = $1',
+                    [domain.trim()]
+                );
+                console.log(`[DEBUG] Domain lookup result:`, domainResult.rows);
+                if (domainResult.rows.length > 0) {
+                    domain = domainResult.rows[0].id;
+                    console.log(`[DEBUG] Converted domain to ID: ${domain}`);
+                } else {
+                    console.log(`[DEBUG] Domain '${domain}' not found`);
+                    return res.status(400).json({ error: `Domain '${domain}' not found` });
+                }
+            } else {
+                // Invalid domain value
+                return res.status(400).json({ error: 'Invalid domain value' });
+            }
+        } else if (role === 'contributor') {
+            // If role is contributor but no valid domain provided
+            return res.status(400).json({ error: 'Domain is required for contributors' });
+        } else {
+            // If no domain provided or empty, set to null (for non-contributors)
+            domain = null;
         }
 
         let query = 'UPDATE users SET username = $1, email = $2';
@@ -606,7 +857,7 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
             params.push(hashedPassword);
         }
 
-        query += ` WHERE id = $${paramIndex} RETURNING id, username, email, role, domain, created_at`;
+        query += ` WHERE id = $${paramIndex} RETURNING id`;
         params.push(id);
 
         const result = await pool.query(query, params);
@@ -615,7 +866,16 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        res.json(result.rows[0]);
+        // Fetch the updated user with domain name for consistent response
+        const userResult = await pool.query(
+            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+             FROM users u 
+             LEFT JOIN domains d ON u.domain = d.id 
+             WHERE u.id = $1`,
+            [id]
+        );
+
+        res.json(userResult.rows[0]);
     } catch (err) {
         console.error(err);
         if (err.code === '23505') { // Unique violation

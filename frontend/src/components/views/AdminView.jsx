@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2 } from 'lucide-react';
 import DomainModal from '../modals/DomainModal';
 import UserModal from '../modals/UserModal';
 import NewsModal from '../modals/NewsModal';
+import { domains as domainsApi, users as usersApi, news as newsApi, subscribers as subscribersApi } from '../../services/api';
 
 const AdminView = ({
     domains,
@@ -33,6 +34,11 @@ const AdminView = ({
     const [newNews, setNewNews] = useState({ title: '', content: '', domain: '' });
 
     // Helpers
+    const getDomainNameById = (domainId) => {
+        const domain = domains.find(d => d.id === domainId);
+        return domain ? domain.name : 'Unknown Domain';
+    };
+
     const getDomainColor = (domainName) => {
         const domain = domains.find(d => d.name === domainName);
         return domain?.color || '#3b82f6';
@@ -70,7 +76,7 @@ const AdminView = ({
             email: user.email,
             password: '',
             role: user.role,
-            domain: user.domain || ''
+            domain: user.domain || ''  // This should be the domain ID
         });
         setShowAddUser(true);
     };
@@ -88,18 +94,6 @@ const AdminView = ({
         setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
     };
 
-    // Handlers for News
-    const handleEditNews = (item, e) => {
-        e.preventDefault();
-        setEditingNews(item);
-        setNewNews({
-            title: item.title,
-            content: item.content,
-            domain: item.domain
-        });
-        setShowNewsModal(true);
-    };
-
     const handleNewsSubmit = async (e) => {
         e.preventDefault();
         const newsData = editingNews ? { ...newNews, id: editingNews.id } : newNews;
@@ -111,6 +105,34 @@ const AdminView = ({
         setShowNewsModal(false);
         setEditingNews(null);
         setNewNews({ title: '', content: '', domain: '' });
+    };
+
+    // Handlers for News
+    const handleEditNews = async (item, e) => {
+        e.preventDefault();
+        
+        try {
+            // Fetch the latest data from the server
+            const newsItem = await newsApi.getById(item.id);
+            
+            setEditingNews(newsItem);
+            setNewNews({
+                title: newsItem.title,
+                content: newsItem.content,
+                domain: newsItem.domain
+            });
+            setShowNewsModal(true);
+        } catch (error) {
+            console.error('Error fetching news item:', error);
+            // Fallback to the existing item data
+            setEditingNews(item);
+            setNewNews({
+                title: item.title,
+                content: item.content,
+                domain: item.domain
+            });
+            setShowNewsModal(true);
+        }
     };
 
     return (
@@ -162,7 +184,7 @@ const AdminView = ({
                                     <div>
                                         <h3 style={{ margin: 0, marginBottom: 'var(--spacing-1)' }}>{domain.name}</h3>
                                         <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
-                                            {domain.articleCount} articles
+                                            {domain.articlecount} articles
                                         </p>
                                     </div>
                                 </div>
@@ -231,7 +253,7 @@ const AdminView = ({
                                         {user.role}
                                     </span>
                                     {user.domain && (
-                                        <span className="badge badge-success">{user.domain}</span>
+                                        <span className="badge badge-success">{getDomainNameById(user.domain)}</span>
                                     )}
                                 </div>
                                 <div className="flex gap-2">
@@ -268,11 +290,11 @@ const AdminView = ({
                                         <span
                                             className="badge"
                                             style={{
-                                                backgroundColor: getDomainColor(item.domain) + '20',
-                                                color: getDomainColor(item.domain)
+                                                backgroundColor: getDomainColor(getDomainNameById(item.domain)) + '20',
+                                                color: getDomainColor(getDomainNameById(item.domain))
                                             }}
                                         >
-                                            {item.domain}
+                                            {getDomainNameById(item.domain)}
                                         </span>
                                         <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
                                             {new Date(item.date).toLocaleDateString()}
@@ -315,6 +337,7 @@ const AdminView = ({
                 isEditing={!!editingNews}
                 currentUser={currentUser}
                 domainColors={domainColors}
+                domains={domains}
             />
         </div>
     );
