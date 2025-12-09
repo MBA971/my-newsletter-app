@@ -82,21 +82,8 @@ const createTables = async () => {
         await pool.query(`
       CREATE TABLE IF NOT EXISTS domains (
         id SERIAL PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
+        name VARCHAR(100) NOT NULL UNIQUE,
         color VARCHAR(50) NOT NULL
-      )
-    `);
-
-        // Create news table
-        await pool.query(`
-      CREATE TABLE IF NOT EXISTS news (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        domain INTEGER NOT NULL REFERENCES domains(id),
-        content TEXT NOT NULL,
-        author VARCHAR(100) NOT NULL,
-        author_id INTEGER,
-        date DATE NOT NULL DEFAULT CURRENT_DATE
       )
     `);
 
@@ -113,6 +100,19 @@ const createTables = async () => {
       )
     `);
 
+        // Create news table
+        await pool.query(`
+      CREATE TABLE IF NOT EXISTS news (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        domain INTEGER NOT NULL REFERENCES domains(id),
+        content TEXT NOT NULL,
+        author VARCHAR(100) NOT NULL,
+        author_id INTEGER,
+        date DATE NOT NULL DEFAULT CURRENT_DATE
+      )
+    `);
+
         // Create subscribers table
         await pool.query(`
       CREATE TABLE IF NOT EXISTS subscribers (
@@ -120,6 +120,19 @@ const createTables = async () => {
         email VARCHAR(100) UNIQUE NOT NULL,
         name VARCHAR(100),
         subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+        // Create audit log table for connection/disconnection tracking
+        await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        action VARCHAR(50) NOT NULL, -- 'login', 'logout'
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     `);
 
@@ -162,73 +175,30 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        console.log('=== LOGIN ATTEMPT ===');
-        console.log('Email:', email);
-        console.log('Password (length):', password.length);
-        console.log('Password has leading/trailing whitespace:', password !== password.trim());
-        console.log('Request IP:', req.ip);
-        console.log('User-Agent:', req.get('User-Agent'));
-        console.log('Timestamp:', new Date().toISOString());
-
         // Find user
-        console.log('Querying database for user...');
         const result = await pool.query(
             'SELECT * FROM users WHERE email = $1',
             [email]
         );
 
-        console.log('Database query result count:', result.rows.length);
-
         if (result.rows.length === 0) {
-            console.log('❌ USER NOT FOUND - Returning 401');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         const user = result.rows[0];
-        console.log('User found:', {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            password_hash_length: user.password.length,
-            stored_hash: user.password // DEBUGGING ONLY: Show the actual hash
-        });
 
         // Verify password
-        console.log('Verifying password...');
-        console.log('Password before trim:', JSON.stringify(password));
-        const trimmedPassword = password.trim();
-        console.log('Password after trim:', JSON.stringify(trimmedPassword));
-
-        const isValid = await bcrypt.compare(trimmedPassword, user.password);
-        console.log('Password verification result:', isValid);
+        const isValid = await bcrypt.compare(password, user.password);
 
         if (!isValid) {
-            console.log('❌ INVALID PASSWORD - Returning 401');
-            // Let's also try with the original password to see if that works
-            const isValidOriginal = await bcrypt.compare(password, user.password);
-            console.log('Original password verification result:', isValidOriginal);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        console.log('✅ Password verified successfully');
-
-        // Log JWT configuration
-        console.log('JWT Configuration:');
-        console.log('- JWT_SECRET length:', (process.env.JWT_SECRET || '').length);
-        console.log('- JWT_REFRESH_SECRET length:', (process.env.JWT_REFRESH_SECRET || '').length);
-        console.log('- NODE_ENV:', process.env.NODE_ENV);
-
         // Generate tokens
-        console.log('Generating access token...');
         const accessToken = generateAccessToken(user);
-        console.log('Access token generated, length:', accessToken.length);
-
-        console.log('Generating refresh token...');
         const refreshToken = generateRefreshToken(user);
-        console.log('Refresh token generated, length:', refreshToken.length);
 
         // Set cookies
-        console.log('Setting cookies...');
         res.cookie('accessToken', accessToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -243,9 +213,19 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
+        // Log the login event in audit_log
+        try {
+            await pool.query(
+                `INSERT INTO audit_log (user_id, action, ip_address, user_agent) 
+                 VALUES ($1, $2, $3, $4)`,
+                [user.id, 'login', req.ip, req.get('User-Agent') || '']
+            );
+        } catch (auditError) {
+            console.error('Failed to log login event:', auditError);
+        }
+
         // Return user info (without password)
         const { password: _, ...userWithoutPassword } = user;
-        console.log('✅ LOGIN SUCCESSFUL - Sending response');
         res.json({
             message: 'Login successful',
             user: userWithoutPassword,
@@ -253,16 +233,29 @@ app.post('/api/auth/login', loginLimiter, validateLogin, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ LOGIN ERROR:', error);
-        console.error('Error stack:', error.stack);
+        console.error('LOGIN ERROR:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
 // Logout
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
     res.clearCookie('accessToken');
     res.clearCookie('refreshToken');
+    
+    // Log the logout event in audit_log
+    try {
+        pool.query(
+            `INSERT INTO audit_log (user_id, action, ip_address, user_agent) 
+             VALUES ($1, $2, $3, $4)`,
+            [req.user.userId, 'logout', req.ip, req.get('User-Agent') || '']
+        ).catch(auditError => {
+            console.error('Failed to log logout event:', auditError);
+        });
+    } catch (error) {
+        console.error('Error setting up logout audit log:', error);
+    }
+    
     res.json({ message: 'Logged out successfully' });
 });
 
@@ -301,6 +294,22 @@ app.post('/api/auth/refresh', async (req, res) => {
 
     } catch (error) {
         res.status(403).json({ error: 'Invalid refresh token' });
+    }
+});
+
+// Get audit logs (admin only)
+app.get('/api/audit', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT al.*, u.username, u.email 
+             FROM audit_log al 
+             JOIN users u ON al.user_id = u.id 
+             ORDER BY al.timestamp DESC`
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching audit logs:', error);
+        res.status(500).json({ error: 'Server error' });
     }
 });
 

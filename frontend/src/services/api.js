@@ -273,3 +273,22 @@ export const subscribers = {
         return response.json();
     }
 };
+
+// Audit API
+export const audit = {
+    getAll: async () => {
+        const response = await fetch(`${API_URL}/api/audit`, {
+            headers: getHeaders(true),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.error) {
+                throw new Error(errorData.error);
+            }
+            throw new Error('Failed to fetch audit logs');
+        }
+        
+        return response.json();
+    }
+};

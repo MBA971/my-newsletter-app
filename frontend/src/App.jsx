@@ -3,7 +3,7 @@ import { User, LogOut, Sun, Moon, Newspaper, Mail } from 'lucide-react';
 import './App.css';
 
 // Services
-import { auth, domains as domainsApi, news as newsApi, users as usersApi, subscribers as subscribersApi } from './services/api';
+import { auth, domains as domainsApi, news as newsApi, users as usersApi, subscribers as subscribersApi, audit as auditApi } from './services/api';
 
 // Components
 import Notification from './components/ui/Notification';
@@ -148,16 +148,18 @@ const App = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const data = await auth.login(loginForm.email, loginForm.password);
-
-      localStorage.setItem('accessToken', data.accessToken);
-      setCurrentUser(data.user);
-      setCurrentView(data.user.role === 'admin' ? 'admin' : 'contributor');
-      setShowLogin(false);
-      showNotification(`Welcome back, ${data.user.username}!`, 'success');
-      setLoginForm({ email: '', password: '' });
+        const data = await auth.login(loginForm.email, loginForm.password);
+        
+        localStorage.setItem('accessToken', data.accessToken);
+        setCurrentUser(data.user);
+        setCurrentView(data.user.role === 'admin' ? 'admin' : 'contributor');
+        setShowLogin(false);
+        showNotification(`Welcome back, ${data.user.username}!`, 'success');
+        setLoginForm({ email: '', password: '' });
     } catch (error) {
-      showNotification(error.message, 'error');
+        // Show specific error messages
+        const errorMessage = error.message || 'Login failed';
+        showNotification(errorMessage, 'error');
     }
   };
 
@@ -173,111 +175,134 @@ const App = () => {
   // Domain Handlers
   const handleSaveDomain = async (domainData, isEditing) => {
     try {
-      if (isEditing) {
-        await domainsApi.update(domainData.id, domainData);
-        showNotification('Domain updated successfully', 'success');
-      } else {
-        await domainsApi.create(domainData);
-        showNotification('Domain added successfully', 'success');
-      }
-      fetchData();
-      return true;
+        if (isEditing) {
+            await domainsApi.update(domainData.id, domainData);
+            showNotification('Domain updated successfully', 'success');
+        } else {
+            await domainsApi.create(domainData);
+            showNotification('Domain added successfully', 'success');
+        }
+        fetchData();
+        return true;
     } catch (error) {
-      showNotification('Error saving domain', 'error');
-      return false;
+        // Show specific validation error messages
+        const errorMessage = error.message || 'Error saving domain';
+        showNotification(errorMessage, 'error');
+        return false;
     }
-  };
+};
 
   const handleDeleteDomain = async (id) => {
     try {
-      await domainsApi.delete(id);
-      showNotification('Domain deleted successfully', 'success');
-      fetchData();
+        await domainsApi.delete(id);
+        showNotification('Domain deleted successfully', 'success');
+        fetchData();
     } catch (error) {
-      showNotification('Error deleting domain', 'error');
+        // Show specific error messages
+        const errorMessage = error.message || 'Error deleting domain';
+        showNotification(errorMessage, 'error');
     }
   };
 
   // User Handlers
   const handleSaveUser = async (userData, isEditing) => {
     try {
-      if (isEditing) {
-        await usersApi.update(userData.id, userData);
-        showNotification('User updated successfully', 'success');
-      } else {
-        await usersApi.create(userData);
-        showNotification('User added successfully', 'success');
-      }
-      fetchData();
-      return true;
+        if (isEditing) {
+            await usersApi.update(userData.id, userData);
+            showNotification('User updated successfully', 'success');
+        } else {
+            await usersApi.create(userData);
+            showNotification('User added successfully', 'success');
+        }
+        fetchData();
+        return true;
     } catch (error) {
-      showNotification('Error saving user', 'error');
-      return false;
+        // Show specific validation error messages
+        const errorMessage = error.message || 'Error saving user';
+        showNotification(errorMessage, 'error');
+        return false;
     }
   };
 
   const handleDeleteUser = async (id) => {
     try {
-      await usersApi.delete(id);
-      showNotification('User deleted successfully', 'success');
-      setUsers(users.filter(u => u.id !== id));
+        await usersApi.delete(id);
+        showNotification('User deleted successfully', 'success');
+        setUsers(users.filter(u => u.id !== id));
     } catch (error) {
-      showNotification('Error deleting user', 'error');
+        // Show specific error messages
+        const errorMessage = error.message || 'Error deleting user';
+        showNotification(errorMessage, 'error');
     }
-  };
+};
 
   // News Handlers
   const handleSaveNews = async (newsData, isEditing) => {
     try {
-      const payload = {
-        ...newsData,
-        author: currentUser.username,
-        // If contributor, force their domain. If admin, trust the newsData.domain or fallback
-        domain: currentUser.role === 'contributor' ? currentUser.domain : newsData.domain
-      };
+        const payload = {
+            ...newsData,
+            author: currentUser.username,
+            // If contributor, force their domain. If admin, trust the newsData.domain or fallback
+            domain: currentUser.role === 'contributor' ? currentUser.domain : newsData.domain
+        };
 
-      if (isEditing) {
-        await newsApi.update(newsData.id, payload);
-        showNotification('News updated successfully', 'success');
-      } else {
-        await newsApi.create(payload);
-        showNotification('News added successfully', 'success');
-      }
-      fetchData();
-      return true;
+        if (isEditing) {
+            await newsApi.update(newsData.id, payload);
+            showNotification('News updated successfully', 'success');
+        } else {
+            await newsApi.create(payload);
+            showNotification('News added successfully', 'success');
+        }
+        fetchData();
+        return true;
     } catch (error) {
-      showNotification('Error saving news', 'error');
-      return false;
+        // Show specific validation error messages
+        const errorMessage = error.message || 'Error saving news';
+        showNotification(errorMessage, 'error');
+        return false;
     }
   };
 
   const handleDeleteNews = async (id) => {
     try {
-      await newsApi.delete(id);
-      showNotification('News deleted successfully', 'success');
-      setNews(news.filter(n => n.id !== id));
+        await newsApi.delete(id);
+        showNotification('News deleted successfully', 'success');
+        setNews(news.filter(n => n.id !== id));
     } catch (error) {
-      showNotification('Error deleting news', 'error');
+        // Show specific error messages
+        const errorMessage = error.message || 'Error deleting news';
+        showNotification(errorMessage, 'error');
     }
   };
 
   // Profile Handlers
   const handleOpenProfile = () => {
-    setProfileData({ ...currentUser, password: '' });
+    // Ensure profileData has all required fields with proper defaults
+    const initialProfileData = {
+        id: currentUser?.id || '',
+        username: currentUser?.username || '',
+        email: currentUser?.email || '',
+        password: '',
+        role: currentUser?.role || 'user',
+        domain: currentUser?.domain || null
+    };
+    setProfileData(initialProfileData);
     setShowProfile(true);
-  };
+};
 
-  const handleSaveProfile = async (e) => {
+const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
-      const updatedUser = await usersApi.update(currentUser.id, profileData);
-      setCurrentUser({ ...currentUser, username: updatedUser.username, email: updatedUser.email }); // Update local state, password is not returned
-      showNotification('Profile updated successfully', 'success');
-      setShowProfile(false);
+        const updatedUser = await usersApi.update(currentUser.id, profileData);
+        setCurrentUser({ ...currentUser, username: updatedUser.username, email: updatedUser.email }); // Update local state, password is not returned
+        showNotification('Profile updated successfully', 'success');
+        setShowProfile(false);
     } catch (error) {
-      showNotification('Error updating profile', 'error');
+        // Show specific error messages
+        const errorMessage = error.message || 'Error updating profile';
+        showNotification(errorMessage, 'error');
     }
-  };
+};
 
   return (
     <div className="app-container">
