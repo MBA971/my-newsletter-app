@@ -162,7 +162,7 @@ const AdminView = ({
                                     <div>
                                         <h3 style={{ margin: 0, marginBottom: 'var(--spacing-1)' }}>{domain.name}</h3>
                                         <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
-                                            {news.filter(n => n.domain === domain.name).length} articles
+                                            {domain.articleCount} articles
                                         </p>
                                     </div>
                                 </div>
