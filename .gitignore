@@ -32,3 +32,12 @@ docker-compose.override.yml
 # Database
 *.sql
 *.db
+# Exception: Allow specific export files that are safe to share
+!export-database.sql
+!export-database-final.sql
+!export-database-local.sql
+# Note: export-database-full.sql is intentionally excluded as it contains live data
+
+# Generated export files
+export-database-full.sql
+export-full-database-pgadmin.sql
