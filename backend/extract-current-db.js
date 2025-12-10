@@ -14,10 +14,10 @@ const __dirname = path.dirname(__filename);
 // When running from host, use 'localhost' with port 5433
 const isInsideContainer = process.env.DB_HOST === 'db';
 const config = {
-  user: 'postgres',
+  user: process.env.DB_USER || 'postgres',
   host: isInsideContainer ? 'db' : 'localhost',
-  database: 'newsletter_app',
-  password: 'postgres',
+  database: process.env.DB_NAME || 'newsletter_app',
+  password: process.env.DB_PASSWORD || 'postgres',
   port: isInsideContainer ? 5432 : 5433,
 };
 
@@ -53,14 +53,13 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create news table (using integer domain IDs)
+-- Create news table (using integer domain IDs and author_id only)
 CREATE TABLE IF NOT EXISTS news (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   domain INTEGER NOT NULL REFERENCES domains(id),
   content TEXT NOT NULL,
-  author VARCHAR(100) NOT NULL,
-  author_id INTEGER,
+  author_id INTEGER REFERENCES users(id),
   date DATE NOT NULL DEFAULT CURRENT_DATE
 );
 
@@ -76,7 +75,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
 CREATE TABLE IF NOT EXISTS audit_log (
   id SERIAL PRIMARY KEY,
   user_id INTEGER,
-  action VARCHAR(50) NOT NULL,
+  action VARCHAR(50) NOT NULL, -- 'login', 'logout'
   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ip_address VARCHAR(45),
   user_agent TEXT,
@@ -118,11 +117,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
     const newsResult = await client.query('SELECT * FROM news ORDER BY id');
     if (newsResult.rows.length > 0) {
       exportContent += '-- Insert news articles\n';
-      exportContent += 'INSERT INTO news (id, title, domain, content, author, author_id, date) VALUES\n';
+      exportContent += 'INSERT INTO news (id, title, domain, content, author_id, date) VALUES\n';
       const newsValues = newsResult.rows.map((row, index) => {
         const isLast = index === newsResult.rows.length - 1;
         const authorIdValue = row.author_id ? row.author_id : 'NULL';
-        return `  (${row.id}, '${row.title.replace(/'/g, "''")}', ${row.domain}, '${row.content.replace(/'/g, "''")}', '${row.author.replace(/'/g, "''")}', ${authorIdValue}, '${row.date}')${isLast ? ';' : ','}`;
+        return `  (${row.id}, '${row.title.replace(/'/g, "''")}', ${row.domain}, '${row.content.replace(/'/g, "''")}', ${authorIdValue}, '${row.date}')${isLast ? ';' : ','}`;
       }).join('\n');
       exportContent += newsValues + '\n\n';
     }

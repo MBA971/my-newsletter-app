@@ -365,8 +365,11 @@ const App = () => {
       : filteredNews.filter(n => n.domain === filterDomain);
 
     const contributorNews = currentUser && currentUser.role === 'contributor'
-      ? news.filter(item => item.domain === currentUser.domain)
-      : [];
+      ? news.filter(item => 
+          item.domain === currentUser.domain || 
+          (item.author && currentUser.username && 
+           item.author.toString().trim() === currentUser.username.toString().trim()))
+        : [];
 
     return { filteredNews, domainFilteredNews, contributorNews };
   };
@@ -888,13 +891,36 @@ const App = () => {
                   <h3 style={{ marginBottom: 'var(--spacing-2)' }}>{item.title}</h3>
                   <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>{item.content}</p>
                 </div>
-                <button
-                  onClick={() => handleDeleteNews(item.id)}
-                  className="btn-icon"
-                  style={{ color: 'var(--error-600)' }}
-                >
-                  <Trash2 size={20} />
-                </button>
+                <div className="flex gap-2">
+                  {(currentUser.role === 'admin' || 
+                    (item.author && currentUser.username && 
+                     item.author.toString().trim() === currentUser.username.toString().trim())) && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingNews(item);
+                          setNewNews({
+                            title: item.title,
+                            content: item.content,
+                            domain: item.domain
+                          });
+                          setShowAddNews(true);
+                        }}
+                        className="btn-icon"
+                        style={{ color: 'var(--primary-600)' }}
+                      >
+                        <Edit size={20} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteNews(item.id)}
+                        className="btn-icon"
+                        style={{ color: 'var(--error-600)' }}
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}

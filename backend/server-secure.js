@@ -542,13 +542,17 @@ app.put('/api/news/:id', authenticateToken, requireContributor, checkDomainAcces
 
         // Check permissions for contributors
         if (req.user.role === 'contributor') {
-            // Use trim() to ensure no whitespace issues
-            const articleAuthor = (newsItem.author || '').trim();
-            const userAuthor = (req.user.username || '').trim();
+            // Check if user is authorized to edit this article:
+            // 1. Admin can edit any article
+            // 2. Author can edit their own article (check by user ID)
+            // 3. Editors can edit articles they have been granted access to
+            const isAuthorized = req.user.role === 'admin' ||
+              newsItem.author_id === req.user.userId ||
+              (Array.isArray(newsItem.editors) && newsItem.editors.includes(req.user.email));
 
-            if (articleAuthor !== userAuthor) {
-                console.log(`[DEBUG] 403 Author Mismatch: '${articleAuthor}' !== '${userAuthor}'`);
-                return res.status(403).json({ error: 'You can only edit your own articles' });
+            if (!isAuthorized) {
+                console.log(`[DEBUG] 403 Permission Denied: User ${req.user.userId} cannot edit article ${newsItem.id}`);
+                return res.status(403).json({ error: 'You do not have permission to edit this article' });
             }
 
             // Contributors cannot change the domain
@@ -610,6 +614,56 @@ app.put('/api/news/:id', authenticateToken, requireContributor, checkDomainAcces
     }
 });
 
+// Grant edit access to another contributor
+app.post('/api/news/:id/grant-edit', authenticateToken, requireContributor, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userEmail } = req.body; // Email of user to grant edit access
+    
+    // Check if the article exists
+    const newsResult = await pool.query(
+      'SELECT * FROM news WHERE id = $1',
+      [id]
+    );
+    
+    if (newsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'News article not found' });
+    }
+    
+    const article = newsResult.rows[0];
+    
+    // Check if current user is authorized to grant access (author or admin)
+    // Use author_id for permission checking instead of username comparison
+    if (req.user.role !== 'admin' && article.author_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Only the author or admin can grant edit access' });
+    }
+    
+    // Check if target user exists and is a contributor
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE email = $1 AND role = $2',
+      [userEmail, 'contributor']
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found or not a contributor' });
+    }
+    
+    // Add user to editors array if not already there
+    if (!article.editors.includes(userEmail)) {
+      const newEditors = [...article.editors, userEmail];
+      await pool.query(
+        'UPDATE news SET editors = $1 WHERE id = $2',
+        [newEditors, id]
+      );
+    }
+    
+    res.json({ message: `Edit access granted to ${userEmail}` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Delete news (contributor can delete their own, admin can delete any)
 app.delete('/api/news/:id', authenticateToken, requireContributor, async (req, res) => {
     try {
@@ -626,9 +680,16 @@ app.delete('/api/news/:id', authenticateToken, requireContributor, async (req, r
 
         // Check permissions
         if (req.user.role === 'contributor') {
-            // Contributors can only delete their own articles in their domain
-            if (newsItem.author !== req.user.username || newsItem.domain !== req.user.domain) {
-                return res.status(403).json({ error: 'You can only delete your own articles in your domain' });
+            // Check if user is authorized to delete this article:
+            // 1. Admin can delete any article
+            // 2. Author can delete their own article (check by user ID)
+            // 3. Editors can delete articles they have been granted access to
+            const isAuthorized = req.user.role === 'admin' ||
+              newsItem.author_id === req.user.userId ||
+              (Array.isArray(newsItem.editors) && newsItem.editors.includes(req.user.email));
+
+            if (!isAuthorized) {
+                return res.status(403).json({ error: 'You do not have permission to delete this article' });
             }
         }
 

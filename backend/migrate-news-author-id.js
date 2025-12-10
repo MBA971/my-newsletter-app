@@ -1,4 +1,13 @@
-import pool from './utils/database.js';
+import { Pool } from 'pg';
+
+// Create a single database connection pool to be reused
+const pool = new Pool({
+  user: 'postgres',
+  host: 'db', // Use 'db' for Docker
+  database: 'newsletter_app',
+  password: 'postgres',
+  port: 5432,
+});
 
 const migrate = async () => {
     try {
@@ -19,6 +28,25 @@ const migrate = async () => {
         if (journeyUser) {
             userMap['journey_specialist'] = journeyUser.id;
         }
+        
+        // Handle 'hiring_managerb' (in news) -> 'hiring_manager' (in users)
+        // Find ID for 'hiring_manager'
+        const hiringManagerUser = users.rows.find(u => u.username === 'hiring_manager');
+        if (hiringManagerUser) {
+            userMap['hiring_managerb'] = hiringManagerUser.id;
+        }
+        
+        // Handle 'hiring_manager' (in news) -> 'hiring_managerb' (in users)
+        const hiringManagerbUser = users.rows.find(u => u.username === 'hiring_managerb');
+        if (hiringManagerbUser) {
+            userMap['hiring_manager'] = hiringManagerbUser.id;
+        }
+        
+        // Handle 'event_coordinator' (in news) -> 'event_coordinators' (in users)
+        const eventCoordinatorsUser = users.rows.find(u => u.username === 'event_coordinators');
+        if (eventCoordinatorsUser) {
+            userMap['event_coordinator'] = eventCoordinatorsUser.id;
+        }
 
         // 3. Update News
         const news = await pool.query('SELECT id, author FROM news');
@@ -37,6 +65,7 @@ const migrate = async () => {
     } catch (e) {
         console.error(e);
     } finally {
+        await pool.end();
         process.exit();
     }
 };

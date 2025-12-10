@@ -10,10 +10,10 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
 
     // Filter news for this contributor
     // For admins in contributor view, show only articles they created
-    // For contributors, filter by their domain
-    const contributorNews = currentUser.role === 'admin' 
-        ? news.filter(item => item.author === currentUser.username)
-        : news.filter(item => item.domain === currentUser.domain);
+    // For contributors, show articles in their domain AND articles they authored (by user ID)
+    const contributorNews = currentUser.role === 'admin'
+        ? news.filter(item => item.author_id === currentUser.id)
+        : news.filter(item => item.domain === currentUser.domain || item.author_id === currentUser.id);
 
     // Create domainColors map for NewsModal (required prop)
     const domainColors = domains.reduce((acc, d) => ({ ...acc, [d.name]: d.color }), {});
@@ -27,6 +27,22 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
         if (!domains || !Array.isArray(domains)) return '';
         const domain = domains.find(d => d.id === domainId);
         return domain ? domain.name : '';
+    };
+
+    // Get domain name by domain value (could be ID or name)
+    const getDomainName = (domainValue) => {
+        // First try to find by ID
+        if (typeof domainValue === 'number') {
+            const domain = domains.find(d => d.id === domainValue);
+            return domain ? domain.name : '';
+        }
+
+        // If it's a string, it might be the domain name already
+        if (typeof domainValue === 'string') {
+            return domainValue;
+        }
+
+        return '';
     };
 
     const handleAddNew = () => {
@@ -97,47 +113,49 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
                     <p className="empty-state-text">Start by creating your first article</p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--spacing-6)' }}>
+                <div className="grid-responsive">
                     {contributorNews.map(item => (
                         <div key={item.id} className="card">
                             <div className="flex items-start justify-between gap-4">
                                 <div style={{ flex: 1 }}>
-                                    <div className="flex items-center gap-3" style={{ marginBottom: 'var(--spacing-2)' }}>
+                                    <div className="flex items-center gap-3 mb-2">
                                         <span
                                             className="badge"
                                             style={{
-                                                backgroundColor: getDomainColor(getDomainNameById(item.domain)) + '20',
-                                                color: getDomainColor(getDomainNameById(item.domain))
+                                                backgroundColor: getDomainColor(getDomainName(item.domain)) + '20',
+                                                color: getDomainColor(getDomainName(item.domain))
                                             }}
                                         >
-                                            {getDomainNameById(item.domain)}
+                                            {getDomainName(item.domain)}
                                         </span>
-                                        <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                                        <span className="text-sm text-tertiary">
                                             {new Date(item.date).toLocaleDateString()}
                                         </span>
                                     </div>
-                                    <h3 style={{ marginBottom: 'var(--spacing-2)' }}>{item.title}</h3>
-                                    <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>{item.content}</p>
+                                    <h3 className="mb-2">{item.title}</h3>
+                                    <p className="m-0 text-secondary">{item.content}</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    {(currentUser.role === 'admin' || item.author === currentUser.username) && (
-                                        <>
-                                            <button
-                                                onClick={() => handleEdit(item)}
-                                                className="btn-icon"
-                                                style={{ color: 'var(--primary-600)' }}
-                                            >
-                                                <Edit size={20} />
-                                            </button>
-                                            <button
-                                                onClick={() => onDeleteNews(item.id)}
-                                                className="btn-icon"
-                                                style={{ color: 'var(--error-600)' }}
-                                            >
-                                                <Trash2 size={20} />
-                                            </button>
-                                        </>
-                                    )}
+                                    {((currentUser.role === 'admin') ||
+                                        (item.author_id === currentUser.id) ||
+                                        (Array.isArray(item.editors) && item.editors.includes(currentUser.email))) && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleEdit(item)}
+                                                    className="btn-icon"
+                                                    style={{ color: 'var(--primary-600)' }}
+                                                >
+                                                    <Edit size={20} />
+                                                </button>
+                                                <button
+                                                    onClick={() => onDeleteNews(item.id)}
+                                                    className="btn-icon"
+                                                    style={{ color: 'var(--error-600)' }}
+                                                >
+                                                    <Trash2 size={20} />
+                                                </button>
+                                            </>
+                                        )}
                                 </div>
                             </div>
                         </div>

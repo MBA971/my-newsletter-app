@@ -34,9 +34,15 @@ export const createUser = async (req, res) => {
 
     // Handle domain - now it should be an integer ID
     let domainId = null;
-    if (domain) {
-      // Ensure domain is an integer
-      domainId = parseInt(domain);
+    if (domain !== undefined && domain !== null && domain !== '') {
+      // Convert domain to integer if it's a string
+      if (typeof domain === 'string') {
+        domainId = parseInt(domain);
+      } else if (typeof domain === 'number') {
+        domainId = domain;
+      }
+      
+      // Validate that domainId is a valid integer
       if (isNaN(domainId)) {
         return res.status(400).json({ error: 'Invalid domain ID' });
       }
@@ -95,9 +101,15 @@ export const updateUser = async (req, res) => {
 
     // Handle domain - now it should be an integer ID
     let domainId = null;
-    if (domain) {
-      // Ensure domain is an integer
-      domainId = parseInt(domain);
+    if (domain !== undefined && domain !== null && domain !== '') {
+      // Convert domain to integer if it's a string
+      if (typeof domain === 'string') {
+        domainId = parseInt(domain);
+      } else if (typeof domain === 'number') {
+        domainId = domain;
+      }
+      
+      // Validate that domainId is a valid integer
       if (isNaN(domainId)) {
         return res.status(400).json({ error: 'Invalid domain ID' });
       }

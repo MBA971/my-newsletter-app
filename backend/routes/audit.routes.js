@@ -1,9 +1,9 @@
 import express from 'express';
 import { getAuditLogs } from '../controllers/audit.controller.js';
-import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/', authenticateToken, requireRole('admin'), getAuditLogs);
+router.get('/', authenticateToken, requireAdmin, getAuditLogs);
 
 export default router;
