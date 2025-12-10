@@ -1,4 +1,5 @@
 import pool from '../utils/database.js';
+import he from 'he';
 
 // Helper function to decode HTML entities in news content
 const decodeNewsContent = (newsItems) => {
@@ -11,18 +12,21 @@ const decodeNewsContent = (newsItems) => {
 
 export const getAllNews = async (req, res) => {
   try {
+    // Join with users table to get author username
     const result = await pool.query(
-      `SELECT n.*, d.name as domain_name 
+      `SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name
        FROM news n 
-       JOIN domains d ON n.domain = d.id 
+       LEFT JOIN domains d ON n.domain = d.id 
+       LEFT JOIN users u ON n.author_id = u.id
        ORDER BY n.date DESC`
     );
     
     // Transform the data to match the old format (domain as name instead of ID)
     const transformedRows = result.rows.map(row => ({
       ...row,
-      domain: row.domain_name
-    })).map(({ domain_name, ...rest }) => rest);
+      domain: row.domain_name || row.domain, // Use domain_name if available, otherwise fallback to domain
+      author: row.author_name || 'Unknown' // Use author_name from joined users table
+    })).map(({ domain_name, domain_id, author_name, ...rest }) => rest);
     
     // Decode HTML entities in content and title
     const decodedRows = decodeNewsContent(transformedRows);
@@ -46,10 +50,12 @@ export const getNewsById = async (req, res) => {
     }
 
     console.log('[DEBUG] Querying database for news id:', id);
+    // Join with users table to get author username
     const result = await pool.query(
-      `SELECT n.*, d.name as domain_name 
+      `SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name
        FROM news n 
-       JOIN domains d ON n.domain = d.id 
+       LEFT JOIN domains d ON n.domain = d.id 
+       LEFT JOIN users u ON n.author_id = u.id
        WHERE n.id = $1`,
       [id]
     );
@@ -64,9 +70,10 @@ export const getNewsById = async (req, res) => {
     // Transform the data to match the old format (domain as name instead of ID)
     const transformedRow = {
       ...result.rows[0],
-      domain: result.rows[0].domain_name
+      domain: result.rows[0].domain_name || result.rows[0].domain, // Use domain_name if available, otherwise fallback to domain
+      author: result.rows[0].author_name || 'Unknown' // Use author_name from joined users table
     };
-    const { domain_name, ...finalRow } = transformedRow;
+    const { domain_name, domain_id, author_name, ...finalRow } = transformedRow;
     
     // Decode HTML entities in content and title
     const decodedRow = decodeNewsContent([finalRow])[0];
@@ -82,32 +89,57 @@ export const getNewsById = async (req, res) => {
 export const createNews = async (req, res) => {
   try {
     let { title, domain, content } = req.body;
-    const author = req.user.username;
+    const authorId = req.user.userId; // Get the user ID
 
-    // Convert domain name to domain ID if domain is provided as a name
-    if (domain && typeof domain === 'string') {
-      console.log(`[DEBUG] Converting domain name '${domain}' to ID`);
+    // For contributors, ensure they can only post to their assigned domain
+    if (req.user.role === 'contributor') {
+      // Get the contributor's domain
+      const userResult = await pool.query(
+        'SELECT domain FROM users WHERE id = $1',
+        [authorId]
+      );
+      
+      if (userResult.rows.length > 0 && userResult.rows[0].domain) {
+        // Set domain to contributor's assigned domain
+        domain = userResult.rows[0].domain;
+      }
+    }
+
+    // Validate that domain exists if provided
+    if (domain) {
       const domainResult = await pool.query(
-        'SELECT id FROM domains WHERE name = $1',
+        'SELECT name FROM domains WHERE id = $1',
         [domain]
       );
-      console.log(`[DEBUG] Domain lookup result:`, domainResult.rows);
-      if (domainResult.rows.length > 0) {
-        domain = domainResult.rows[0].id;
-        console.log(`[DEBUG] Converted domain to ID: ${domain}`);
-      } else {
-        console.log(`[DEBUG] Domain '${domain}' not found, setting to null`);
-        domain = null;
+      
+      if (domainResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid domain' });
       }
     }
 
     const result = await pool.query(
-      'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
-      [title, domain, content, author]
+      'INSERT INTO news (title, domain, content, author_id, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
+      [title, domain, content, authorId]
     );
     
+    // Join with users table to get author username for response
+    const joinedResult = await pool.query(
+      `SELECT n.*, u.username as author_name
+       FROM news n 
+       LEFT JOIN users u ON n.author_id = u.id
+       WHERE n.id = $1`,
+      [result.rows[0].id]
+    );
+    
+    // Add author name to the response
+    const finalResult = {
+      ...joinedResult.rows[0],
+      author: joinedResult.rows[0].author_name || 'Unknown'
+    };
+    delete finalResult.author_name;
+    
     // Decode HTML entities in the returned data
-    const decodedResult = decodeNewsContent(result.rows)[0];
+    const decodedResult = decodeNewsContent([finalResult])[0];
     res.json(decodedResult);
   } catch (err) {
     console.error(err);
@@ -145,45 +177,33 @@ export const updateNews = async (req, res) => {
 
     // Check permissions:
     // 1. Admin can edit any article
-    // 2. Author can edit their own article
+    // 2. Author can edit their own article (check by user ID)
     // 3. Editors can edit articles they have been granted access to
     const isAuthorized = req.user.role === 'admin' ||
-      article.author === req.user.username ||
+      article.author_id === req.user.userId ||
       (Array.isArray(article.editors) && article.editors.includes(req.user.email));
 
     if (!isAuthorized) {
       return res.status(403).json({ error: 'You do not have permission to edit this article' });
     }
 
-    console.log(`[DEBUG] Before domain conversion - domain:`, domain, `type:`, typeof domain);
+    // For contributors, ensure they cannot change the domain
+    if (req.user.role === 'contributor') {
+      // Override domain with the original domain to prevent domain changes
+      domain = article.domain;
+    }
 
-    // Convert domain name to domain ID if domain is provided as a name
-    if (domain && typeof domain === 'string') {
-      console.log(`[DEBUG] Converting domain name '${domain}' to ID`);
+    // Validate that domain exists if provided
+    if (domain) {
       const domainResult = await pool.query(
-        'SELECT id FROM domains WHERE name = $1',
+        'SELECT name FROM domains WHERE name = $1',
         [domain]
       );
-      console.log(`[DEBUG] Domain lookup result:`, domainResult.rows);
-      if (domainResult.rows.length > 0) {
-        domain = domainResult.rows[0].id;
-        console.log(`[DEBUG] Converted domain to ID: ${domain}`);
-      } else {
-        console.log(`[DEBUG] Domain '${domain}' not found, setting to null`);
-        domain = null;
+      
+      if (domainResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid domain' });
       }
     }
-
-    // Ensure domain is an integer if it exists
-    if (domain !== null && domain !== undefined) {
-      const domainId = parseInt(domain);
-      if (isNaN(domainId)) {
-        return res.status(400).json({ error: 'Invalid domain ID' });
-      }
-      domain = domainId;
-    }
-
-    console.log(`[DEBUG] After domain conversion - domain:`, domain, `type:`, typeof domain);
 
     const result = await pool.query(
       'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
@@ -223,10 +243,10 @@ export const deleteNews = async (req, res) => {
 
     // Check permissions:
     // 1. Admin can delete any article
-    // 2. Author can delete their own article
+    // 2. Author can delete their own article (check by user ID)
     // 3. Editors can delete articles they have been granted access to
     const isAuthorized = req.user.role === 'admin' ||
-      article.author === req.user.username ||
+      article.author_id === req.user.userId ||
       (Array.isArray(article.editors) && article.editors.includes(req.user.email));
 
     if (!isAuthorized) {
@@ -244,13 +264,24 @@ export const deleteNews = async (req, res) => {
 export const searchNews = async (req, res) => {
   try {
     const { q } = req.query;
+    // Join with users table to search by author username
     const result = await pool.query(
-      `SELECT * FROM news WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 ORDER BY date DESC`,
+      `SELECT n.*, u.username as author_name
+       FROM news n 
+       LEFT JOIN users u ON n.author_id = u.id
+       WHERE n.title ILIKE $1 OR n.content ILIKE $1 OR u.username ILIKE $1 
+       ORDER BY n.date DESC`,
       [`%${q}%`]
     );
     
+    // Add author name to the results
+    const resultsWithAuthor = result.rows.map(row => ({
+      ...row,
+      author: row.author_name || 'Unknown'
+    })).map(({ author_name, ...rest }) => rest);
+    
     // Decode HTML entities in search results
-    const decodedRows = decodeNewsContent(result.rows);
+    const decodedRows = decodeNewsContent(resultsWithAuthor);
     res.json(decodedRows);
   } catch (err) {
     console.error(err);
@@ -283,7 +314,7 @@ export const grantEditAccess = async (req, res) => {
     const article = newsResult.rows[0];
 
     // Check if current user is authorized to grant access (author or admin)
-    if (req.user.role !== 'admin' && article.author !== req.user.username) {
+    if (req.user.role !== 'admin' && article.author_id !== req.user.userId) {
       return res.status(403).json({ error: 'Only the author or admin can grant edit access' });
     }
 

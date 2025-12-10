@@ -95,12 +95,22 @@ const AdminView = ({
     const handleEditUser = (user, e) => {
         e.preventDefault();
         setEditingUser(user);
+        
+        // Find the domain ID from the domain name
+        let domainId = '';
+        if (user.domain) {
+            const domainObj = domains.find(d => d.name === user.domain);
+            if (domainObj) {
+                domainId = String(domainObj.id);
+            }
+        }
+        
         setNewUser({
             username: user.username,
             email: user.email,
             password: '',
             role: user.role,
-            domain: user.domain || ''  // This should be the domain ID
+            domain: domainId
         });
         setShowAddUser(true);
     };
@@ -245,7 +255,7 @@ const AdminView = ({
                                         <div>
                                             <h3 style={{ margin: 0, marginBottom: 'var(--spacing-1)' }}>{domain.name}</h3>
                                             <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
-                                                {domain.articlecount} articles
+                                                {domain.articleCount} articles
                                             </p>
                                         </div>
                                     </div>
@@ -318,7 +328,18 @@ const AdminView = ({
                                                 {user.role}
                                             </span>
                                         </td>
-                                        <td>{user.domain ? getDomainNameById(user.domain) : '-'}</td>
+                                        <td>
+                                            {user.domain ? (
+                                                <span 
+                                                    className="badge" 
+                                                    style={{ backgroundColor: domainColors[user.domain] || '#3b82f6' }}
+                                                >
+                                                    {user.domain}
+                                                </span>
+                                            ) : (
+                                                '-'
+                                            )}
+                                        </td>
                                         <td>{new Date(user.created_at).toLocaleDateString()}</td>
                                         <td>
                                             <div className="flex gap-2">
@@ -393,9 +414,9 @@ const AdminView = ({
                                         <td>
                                             <span 
                                                 className="badge" 
-                                                style={{ backgroundColor: domainColors[item.domain_name] || '#3b82f6' }}
+                                                style={{ backgroundColor: domainColors[item.domain] || '#3b82f6' }}
                                             >
-                                                {item.domain_name}
+                                                {item.domain}
                                             </span>
                                         </td>
                                         <td>{item.author}</td>

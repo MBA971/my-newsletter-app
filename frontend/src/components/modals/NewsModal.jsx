@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { X } from 'lucide-react';
 
-const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, currentUser, domainColors, domains }) => {
+const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, currentUser, domains }) => {
     if (!show) return null;
 
     // Memoize domain calculations to prevent unnecessary re-renders
@@ -44,8 +44,15 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
         if (currentUser.role !== 'admin') {
             return '';
         }
-        return getDomainNameById(newsData.domain);
-    }, [newsData.domain, getDomainNameById, currentUser.role]);
+        
+        // If newsData.domain is already a name (string), use it directly
+        // Otherwise, convert the ID to a name
+        if (typeof newsData.domain === 'string' && domainOptions.some(d => d.name === newsData.domain)) {
+            return newsData.domain;
+        } else {
+            return getDomainNameById(newsData.domain);
+        }
+    }, [newsData.domain, getDomainNameById, currentUser.role, domainOptions]);
 
     // Handle domain selection change (only for admin)
     const handleDomainChange = (e) => {
