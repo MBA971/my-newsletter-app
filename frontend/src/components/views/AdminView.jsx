@@ -95,7 +95,7 @@ const AdminView = ({
     const handleEditUser = (user, e) => {
         e.preventDefault();
         setEditingUser(user);
-        
+
         // Find the domain ID from the domain name
         let domainId = '';
         if (user.domain) {
@@ -104,7 +104,7 @@ const AdminView = ({
                 domainId = String(domainObj.id);
             }
         }
-        
+
         setNewUser({
             username: user.username,
             email: user.email,
@@ -144,11 +144,11 @@ const AdminView = ({
     // Handlers for News
     const handleEditNews = async (item, e) => {
         e.preventDefault();
-        
+
         try {
             // Fetch the latest data from the server
             const newsItem = await newsApi.getById(item.id);
-            
+
             setEditingNews(newsItem);
             setNewNews({
                 title: newsItem.title,
@@ -177,28 +177,28 @@ const AdminView = ({
     return (
         <div className="animate-fadeIn">
             {/* Tab Navigation */}
-            <div className="tabs" style={{ marginBottom: 'var(--spacing-6)' }}>
-                <button 
+            <div className="tabs mb-6">
+                <button
                     className={`tab ${activeTab === 'domains' ? 'active' : ''}`}
                     onClick={() => setActiveTab('domains')}
                 >
                     <Shield size={16} />
                     Domains
                 </button>
-                <button 
+                <button
                     className={`tab ${activeTab === 'users' ? 'active' : ''}`}
                     onClick={() => setActiveTab('users')}
                 >
                     <User size={16} />
                     Users
                 </button>
-                <button 
+                <button
                     className={`tab ${activeTab === 'news' ? 'active' : ''}`}
                     onClick={() => setActiveTab('news')}
                 >
                     News
                 </button>
-                <button 
+                <button
                     className={`tab ${activeTab === 'audit' ? 'active' : ''}`}
                     onClick={() => setActiveTab('audit')}
                 >
@@ -209,7 +209,7 @@ const AdminView = ({
 
             {/* Domains Tab */}
             {activeTab === 'domains' && (
-                <div style={{ marginBottom: 'var(--spacing-12)' }}>
+                <div className="mb-12">
                     <div className="section-header">
                         <h2 className="section-title">Manage Domains</h2>
                         <button
@@ -231,30 +231,22 @@ const AdminView = ({
                         availableColors={availableColors}
                     />
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--spacing-6)' }}>
+                    <div className="grid-responsive">
                         {domains.map(domain => (
                             <div key={domain.id} className="card">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div
+                                            className="domain-icon"
                                             style={{
-                                                width: '48px',
-                                                height: '48px',
-                                                borderRadius: 'var(--radius-lg)',
-                                                backgroundColor: getDomainColor(domain.name),
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                color: 'white',
-                                                fontWeight: 'var(--font-weight-bold)',
-                                                fontSize: 'var(--font-size-xl)'
+                                                backgroundColor: getDomainColor(domain.name)
                                             }}
                                         >
                                             {domain.name.charAt(0)}
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, marginBottom: 'var(--spacing-1)' }}>{domain.name}</h3>
-                                            <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
+                                            <h3 className="m-0 mb-1">{domain.name}</h3>
+                                            <p className="m-0 text-sm text-tertiary">
                                                 {domain.articleCount} articles
                                             </p>
                                         </div>
@@ -284,7 +276,7 @@ const AdminView = ({
 
             {/* Users Tab */}
             {activeTab === 'users' && (
-                <div style={{ marginBottom: 'var(--spacing-12)' }}>
+                <div className="mb-12">
                     <div className="section-header">
                         <h2 className="section-title">Manage Users</h2>
                         <button
@@ -330,8 +322,8 @@ const AdminView = ({
                                         </td>
                                         <td>
                                             {user.domain ? (
-                                                <span 
-                                                    className="badge" 
+                                                <span
+                                                    className="badge"
                                                     style={{ backgroundColor: domainColors[user.domain] || '#3b82f6' }}
                                                 >
                                                     {user.domain}
@@ -369,7 +361,7 @@ const AdminView = ({
 
             {/* News Tab */}
             {activeTab === 'news' && (
-                <div style={{ marginBottom: 'var(--spacing-12)' }}>
+                <div className="mb-12">
                     <div className="section-header">
                         <h2 className="section-title">Manage News</h2>
                         <button
@@ -412,8 +404,8 @@ const AdminView = ({
                                     <tr key={item.id}>
                                         <td>{item.title}</td>
                                         <td>
-                                            <span 
-                                                className="badge" 
+                                            <span
+                                                className="badge"
                                                 style={{ backgroundColor: domainColors[item.domain] || '#3b82f6' }}
                                             >
                                                 {item.domain}
@@ -449,7 +441,7 @@ const AdminView = ({
 
             {/* Audit Log Tab */}
             {activeTab === 'audit' && (
-                <div style={{ marginBottom: 'var(--spacing-12)' }}>
+                <div className="mb-12">
                     <div className="section-header">
                         <h2 className="section-title">Audit Log</h2>
                     </div>
@@ -474,7 +466,7 @@ const AdminView = ({
                                             <td>
                                                 <div>
                                                     <strong>{log.username}</strong>
-                                                    <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
+                                                    <div className="text-sm text-tertiary">
                                                         {log.email}
                                                     </div>
                                                 </div>
@@ -487,7 +479,7 @@ const AdminView = ({
                                             <td>{log.ip_address || 'Unknown'}</td>
                                             <td>{formatTimestamp(log.timestamp)}</td>
                                             <td>
-                                                <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                <div className="text-truncate" style={{ maxWidth: '200px' }}>
                                                     {log.user_agent || 'Unknown'}
                                                 </div>
                                             </td>
@@ -495,7 +487,7 @@ const AdminView = ({
                                     ))}
                                 </tbody>
                             </table>
-                            
+
                             {auditLogs.length === 0 && (
                                 <div className="empty-state">
                                     <p>No audit logs found.</p>
