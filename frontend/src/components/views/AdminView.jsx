@@ -16,7 +16,8 @@ const AdminView = ({
     onDeleteUser,
     onSaveNews,
     onDeleteNews,
-    availableColors
+    availableColors,
+    domainColors
 }) => {
     // Domain Modal State
     const [showAddDomain, setShowAddDomain] = useState(false);
@@ -120,11 +121,10 @@ const AdminView = ({
     };
 
     const getDomainColor = (domainName) => {
+        if (!domainName || !domains) return '#3b82f6';
         const domain = domains.find(d => d.name === domainName);
         return domain?.color || '#3b82f6';
     };
-
-    const domainColors = domains.reduce((acc, d) => ({ ...acc, [d.name]: d.color }), {});
 
     // Generate initials for avatar
     const getInitials = (name) => {
@@ -600,9 +600,12 @@ const AdminView = ({
                                                 <div className="flex items-center gap-2">
                                                     <div
                                                         className="w-2 h-2 rounded-full"
-                                                        style={{ backgroundColor: domainColors[user.domain] || '#3b82f6' }}
+                                                        style={{ backgroundColor: (domainColors && typeof domainColors === 'object' && domainColors[user.domain]) || getDomainColor(user.domain) || '#3b82f6' }}
+                                                        title={`Domain color for: ${user.domain}`}
                                                     ></div>
-                                                    {user.domain}
+                                                    <span title={`Domain: ${user.domain || 'Unknown'}`}>
+                                                        {user.domain && typeof user.domain === 'string' ? user.domain : (user.domain ? String(user.domain) : '??')}
+                                                    </span>
                                                 </div>
                                             )}
                                         </td>

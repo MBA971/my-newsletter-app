@@ -1,7 +1,12 @@
 // Views
 export { default as PublicView } from './PublicView.jsx';
 export { default as ContributorView } from './ContributorView.jsx';
-export { default as AdminView } from './AdminView.jsx';
+export { default as AdminView } from './views/admin/AdminView.jsx';
+
+// App Components
+export { default as AppHeader } from './AppHeader.jsx';
+export { default as AppMain } from './AppMain.jsx';
+export { default as AppModals } from './AppModals.jsx';
 
 // Modals
 export { default as LoginForm } from './LoginForm.jsx';

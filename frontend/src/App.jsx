@@ -121,6 +121,8 @@ const App = () => {
       await fetchPublicData();
       if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'domain_admin')) {
         await fetchAdminData();
+        // Debug: Log the users data to see domain information
+        console.log('[DEBUG] Users data in App.jsx:', users);
       }
     } finally {
       setTimeout(() => setIsLoading(false), 300);

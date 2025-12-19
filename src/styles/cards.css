@@ -1,0 +1,136 @@
+/* News Grid */
+.news-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.news-card {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.news-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+.app.dark-mode .news-card {
+  background-color: #1e293b;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.app.dark-mode .news-card:hover {
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+}
+
+.news-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.app.dark-mode .news-card-header {
+  border-bottom-color: #334155;
+}
+
+.domain-tag {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+}
+
+.news-date {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.app.dark-mode .news-date {
+  color: #94a3b8;
+}
+
+.news-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1rem;
+  color: #0f172a;
+}
+
+.app.dark-mode .news-title {
+  color: #f1f5f9;
+}
+
+.news-content {
+  padding: 0 1rem;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.app.dark-mode .news-content {
+  color: #cbd5e1;
+}
+
+.news-meta {
+  padding: 0 1rem;
+  margin: 0.5rem 0;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge.published {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.pending {
+  background-color: #ffedd5;
+  color: #9a3412;
+}
+
+.status-badge.archived {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+.app.dark-mode .status-badge.published {
+  background-color: #166534;
+  color: #dcfce7;
+}
+
+.app.dark-mode .status-badge.pending {
+  background-color: #9a3412;
+  color: #ffedd5;
+}
+
+.app.dark-mode .status-badge.archived {
+  background-color: #374151;
+  color: #e5e7eb;
+}
+
+.news-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.app.dark-mode .news-actions {
+  border-top-color: #334155;
+}

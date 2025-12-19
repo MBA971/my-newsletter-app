@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, User, LogOut, Plus, Trash2, Calendar, Sun, Moon, Mail, Newspaper, Edit, X } from 'lucide-react';
-import './App.css';
+import './styles/index.css';
 
 // Import services
 import * as newsService from './services/news.service.js';
@@ -9,10 +9,7 @@ import * as usersService from './services/users.service.js';
 import * as authService from './services/auth.service.js';
 
 // Import components
-import { PublicView, ContributorView, AdminView, LoginForm, NewsModal, UserModal, DomainModal, Notification } from './components';
-
-// Import hooks
-import { useDataFetching } from './hooks/useDataFetching.js';
+import { AppHeader, AppMain, AppModals, Notification } from './components';
 
 const App = () => {
   // State management
@@ -516,70 +513,15 @@ const App = () => {
   return (
     <div className={`app ${darkMode ? 'dark-mode' : ''}`}>
       {/* Header */}
-      <header className="app-header">
-        <div className="header-content">
-          <div className="app-title-container">
-            <h1 className="app-title">Newsletter App</h1>
-            <span className="app-version">v1.2.2</span>
-          </div>
-          <nav className="navigation">
-            <button 
-              className={`nav-link ${currentView === 'public' ? 'active' : ''}`}
-              onClick={() => setCurrentView('public')}
-            >
-              <Newspaper size={20} />
-              Public
-            </button>
-            {currentUser && (
-              <button 
-                className={`nav-link ${currentView === 'contributor' ? 'active' : ''}`}
-                onClick={() => setCurrentView('contributor')}
-              >
-                <Edit size={20} />
-                My Articles
-              </button>
-            )}
-            {currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'domain_admin') && (
-              <button 
-                className={`nav-link ${currentView === 'admin' ? 'active' : ''}`}
-                onClick={() => setCurrentView('admin')}
-              >
-                <User size={20} />
-                Admin
-              </button>
-            )}
-          </nav>
-          <div className="header-actions">
-            <button 
-              onClick={toggleDarkMode}
-              className="theme-toggle"
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-            {currentUser ? (
-              <div className="user-menu">
-                <span className="username">{currentUser.username}</span>
-                <button 
-                  onClick={handleLogout}
-                  className="btn btn-secondary"
-                >
-                  <LogOut size={20} />
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <button 
-                onClick={() => setShowLogin(true)}
-                className="btn btn-primary"
-              >
-                <User size={20} />
-                Login
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      <AppHeader 
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        currentUser={currentUser}
+        darkMode={darkMode}
+        toggleDarkMode={toggleDarkMode}
+        setShowLogin={setShowLogin}
+        handleLogout={handleLogout}
+      />
 
       {/* Notification */}
       <Notification notification={notification} />
@@ -592,99 +534,69 @@ const App = () => {
       )}
 
       {/* Main Content */}
-      <main className="main-content">
-        {currentView === 'public' && (
-          <PublicView 
-            news={news}
-            domains={domains}
-            domainColors={domainColors}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            filterDomain={filterDomain}
-            setFilterDomain={setFilterDomain}
-            handleLikeNews={handleLikeNews}
-          />
-        )}
-        {currentView === 'contributor' && (
-          <ContributorView 
-            contributorNews={contributorNews}
-            domainColors={domainColors}
-            handleOpenNewNews={handleOpenNewNews}
-            handleEditNews={handleEditNews}
-            handleDeleteNews={handleDeleteNews}
-            testFetchContributorData={testFetchContributorData}
-          />
-        )}
-        {currentView === 'admin' && (
-          <AdminView 
-            users={users}
-            subscribers={subscribers}
-            domains={domains}
-            domainColors={domainColors}
-            news={adminNews}
-            archivedNews={archivedNews}
-            auditLogs={auditLogs}
-            pendingValidationNews={pendingValidationNews}
-            onSaveDomain={handleUpdateDomain}
-            onDeleteDomain={handleDeleteDomain}
-            onSaveUser={handleUpdateUser}
-            onDeleteUser={handleDeleteUser}
-            onSaveNews={handleUpdateNews}
-            onDeleteNews={handleDeleteNews}
-            onValidateNews={handleValidateNews}
-            onToggleArchive={handleToggleArchiveNews}
-            availableColors={availableColors}
-            currentUser={currentUser}
-          />
-        )}
-      </main>
+      <AppMain 
+        currentView={currentView}
+        news={news}
+        domains={domains}
+        domainColors={domainColors}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        filterDomain={filterDomain}
+        setFilterDomain={setFilterDomain}
+        handleLikeNews={handleLikeNews}
+        contributorNews={contributorNews}
+        handleOpenNewNews={handleOpenNewNews}
+        handleEditNews={handleEditNews}
+        handleDeleteNews={handleDeleteNews}
+        testFetchContributorData={testFetchContributorData}
+        users={users}
+        subscribers={subscribers}
+        adminNews={adminNews}
+        handleOpenNewUser={handleOpenNewUser}
+        handleEditUser={handleEditUser}
+        handleDeleteUser={handleDeleteUser}
+        handleOpenNewDomain={handleOpenNewDomain}
+        handleEditDomain={handleEditDomain}
+        handleDeleteDomain={handleDeleteDomain}
+        handleValidateNews={handleValidateNews}
+        handleToggleArchiveNews={handleToggleArchiveNews}
+      />
 
       {/* Modals */}
-      {showLogin && (
-        <LoginForm 
-          loginForm={loginForm}
-          setLoginForm={setLoginForm}
-          handleLogin={handleLogin}
-          setShowLogin={setShowLogin}
-        />
-      )}
-      
-      {showAddNews && (
-        <NewsModal
-          editingNews={editingNews}
-          newNews={newNews}
-          setNewNews={setNewNews}
-          domains={domains}
-          currentUser={currentUser}
-          handleCreateNews={handleCreateNews}
-          handleUpdateNews={handleUpdateNews}
-          handleCancelNews={handleCancelNews}
-        />
-      )}
-      
-      {showAddUser && (
-        <UserModal
-          editingUser={editingUser}
-          newUser={newUser}
-          setNewUser={setNewUser}
-          domains={domains}
-          handleCreateUser={handleCreateUser}
-          handleUpdateUser={handleUpdateUser}
-          handleCancelUser={handleCancelUser}
-        />
-      )}
-      
-      {showAddDomain && (
-        <DomainModal
-          editingDomain={editingDomain}
-          newDomain={newDomain}
-          setNewDomain={setNewDomain}
-          availableColors={availableColors}
-          handleCreateDomain={handleCreateDomain}
-          handleUpdateDomain={handleUpdateDomain}
-          handleCancelDomain={handleCancelDomain}
-        />
-      )}
+      <AppModals 
+        showLogin={showLogin}
+        setShowLogin={setShowLogin}
+        loginForm={loginForm}
+        setLoginForm={setLoginForm}
+        handleLogin={handleLogin}
+        showAddNews={showAddNews}
+        setShowAddNews={setShowAddNews}
+        editingNews={editingNews}
+        newNews={newNews}
+        setNewNews={setNewNews}
+        domains={domains}
+        currentUser={currentUser}
+        handleCreateNews={handleCreateNews}
+        handleUpdateNews={handleUpdateNews}
+        handleCancelNews={handleCancelNews}
+        showAddUser={showAddUser}
+        setShowAddUser={setShowAddUser}
+        editingUser={editingUser}
+        newUser={newUser}
+        setNewUser={setNewUser}
+        handleCreateUser={handleCreateUser}
+        handleUpdateUser={handleUpdateUser}
+        handleCancelUser={handleCancelUser}
+        showAddDomain={showAddDomain}
+        setShowAddDomain={setShowAddDomain}
+        editingDomain={editingDomain}
+        newDomain={newDomain}
+        setNewDomain={setNewDomain}
+        availableColors={availableColors}
+        handleCreateDomain={handleCreateDomain}
+        handleUpdateDomain={handleUpdateDomain}
+        handleCancelDomain={handleCancelDomain}
+      />
     </div>
   );
 };
