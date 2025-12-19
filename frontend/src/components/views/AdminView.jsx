@@ -158,24 +158,20 @@ const AdminView = ({
     // Handlers for Users
     const handleEditUser = (user, e) => {
         e.preventDefault();
-        console.log('[DEBUG] Editing user:', user);
-        console.log('[DEBUG] Available domains:', domains);
         setEditingUser(user);
 
         // Find the domain ID from the domain name or domain_id
         let domainId = '';
-        if (user.domain) {
+        if (user.domain_name) {
             // User object has domain name
-            const domainObj = domains.find(d => d.name === user.domain);
-            console.log('[DEBUG] Found domain object by name:', domainObj);
+            const domainObj = domains.find(d => d.name === user.domain_name);
             if (domainObj) {
                 domainId = String(domainObj.id);
             }
-        } else if (user.domain_id || user.domainId) {
+        } else if (user.domain_id) {
             // User object has domain ID
-            domainId = String(user.domain_id || user.domainId);
+            domainId = String(user.domain_id);
         }
-        console.log('[DEBUG] Setting domainId:', domainId);
 
         setNewUser({
             username: user.username,
@@ -199,8 +195,6 @@ const AdminView = ({
             }
         }
         
-        console.log('[DEBUG] Submitting user data:', userData);
-        
         // For domain admins, ensure they can only assign users to their own domain
         if (currentUser.role === 'domain_admin') {
             // Find the domain object for the current user's domain
@@ -210,7 +204,6 @@ const AdminView = ({
             }
         }
         
-        console.log('[DEBUG] Final user data being sent:', userData);
         const success = await onSaveUser(userData, !!editingUser);
         if (success) closeUserModal();
     };
@@ -328,7 +321,7 @@ const AdminView = ({
 
     // Filter Logic
     const filteredUsers = users.filter(user =>
-        (currentUser.role === 'super_admin' || user.domain === currentUser.domain) &&
+        (currentUser.role === 'super_admin' || user.domain_name === currentUser.domain) &&
         (user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -384,8 +377,8 @@ const AdminView = ({
             bgClass: 'bg-green-50'
         },
         {
-            label: 'System Activity',
-            value: 'Active',
+            label: 'Version',
+            value: 'v1.3.0',
             icon: Activity,
             gradientClass: 'text-gradient-orange',
             bgClass: 'bg-orange-50'
@@ -619,20 +612,20 @@ const AdminView = ({
                                             </span>
                                         </td>
                                         <td>
-                                            {/* Consistent domain display using domain_name */}
-                                            {console.log('[DEBUG] User data for domain display:', user)}
                                             {user.role === 'super_admin' ? (
                                                 <span className="text-tertiary">All domains</span>
                                             ) : (
                                                 user.domain_name ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div
-                                                            className="w-2 h-2 rounded-full"
-                                                            style={{ backgroundColor: (domainColors && typeof domainColors === 'object' && domainColors[user.domain_name]) || getDomainColor(user.domain_name) || '#3b82f6' }}
-                                                            title={`Domain: ${user.domain_name}`}
-                                                        ></div>
-                                                        <span>{user.domain_name}</span>
-                                                    </div>
+                                                    <span
+                                                        className="badge shadow-sm border border-transparent"
+                                                        style={{
+                                                            backgroundColor: `${domainColors[user.domain_name]}15`,
+                                                            color: domainColors[user.domain_name],
+                                                            borderColor: `${domainColors[user.domain_name]}30`,
+                                                        }}
+                                                    >
+                                                        {user.domain_name}
+                                                    </span>
                                                 ) : (
                                                     <span className="text-tertiary">No domain</span>
                                                 )
