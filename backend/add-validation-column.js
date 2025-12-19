@@ -98,14 +98,14 @@ async function addValidationColumn() {
             }
         }
         
-        // Update existing news articles to have pending_validation = false if they were created by admins
+        // Update existing news articles to have pending_validation = false if they were created by super_admins or domain_admins
         // This assumes that articles created by admins don't need validation
-        console.log('Setting pending_validation = false for articles created by admins...');
+        console.log('Setting pending_validation = false for articles created by super_admins and domain_admins...');
         await client.query(`
             UPDATE news 
             SET pending_validation = false 
             WHERE author_id IN (
-                SELECT id FROM users WHERE role = 'admin'
+                SELECT id FROM users WHERE role = 'super_admin' OR role = 'domain_admin'
             )
         `);
         console.log('✅ Existing admin articles marked as validated');
@@ -115,7 +115,7 @@ async function addValidationColumn() {
         console.log('- Added pending_validation column to news table');
         console.log('- Added validated_by column to news table');
         console.log('- Added validated_at column to news table');
-        console.log('- Updated existing admin articles to be marked as validated');
+        console.log('- Updated existing super_admin and domain_admin articles to be marked as validated');
         
     } catch (error) {
         console.error('❌ Error updating database schema:', error.message);

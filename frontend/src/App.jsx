@@ -120,17 +120,30 @@ const App = () => {
     }
   }, [currentUser, showNotification]);
 
+  const fetchContributorData = useCallback(async () => {
+    if (!currentUser || currentUser.role !== 'contributor') return;
+    try {
+      const contributorNewsData = await newsApi.getContributorNews();
+      setNews(contributorNewsData);
+    } catch (error) {
+      console.error('Error fetching contributor data:', error);
+      showNotification('Failed to load contributor data: ' + error.message, 'error');
+    }
+  }, [currentUser, showNotification]);
+
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       await fetchPublicData();
       if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'domain_admin')) {
         await fetchAdminData();
+      } else if (currentUser && currentUser.role === 'contributor') {
+        await fetchContributorData();
       }
     } finally {
       setTimeout(() => setIsLoading(false), 300);
     }
-  }, [currentUser, fetchPublicData, fetchAdminData]);
+  }, [currentUser, fetchPublicData, fetchAdminData, fetchContributorData]);
 
   // Auth Effects
   useEffect(() => {
