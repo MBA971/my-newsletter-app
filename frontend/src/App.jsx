@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, LogOut, Sun, Moon, Newspaper, Mail } from 'lucide-react';
 import './App.css';
 
 // Services
-import { auth, domains as domainsApi, news as newsApi, users as usersApi, subscribers as subscribersApi, audit as auditApi } from './services/api';
+import { auth, domains as domainsApi, news as newsApi, users as usersApi, audit as auditApi } from './services/api';
 
 // Components
 import Notification from './components/ui/Notification';
@@ -16,11 +16,12 @@ import ContributorView from './components/views/ContributorView';
 import AdminView from './components/views/AdminView';
 
 const App = () => {
-  // State management functions
+  // State management
   const [domains, setDomains] = useState([]);
   const [news, setNews] = useState([]);
   const [users, setUsers] = useState([]);
   const [subscribers, setSubscribers] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [currentView, setCurrentView] = useState('public');
   const [currentUser, setCurrentUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
@@ -31,8 +32,8 @@ const App = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Available colors for new domains
-  const availableColors = [
+  // Constants
+  const availableColors = useMemo(() => [
     { name: 'Blue', value: '#3b82f6' },
     { name: 'Green', value: '#22c55e' },
     { name: 'Purple', value: '#a855f7' },
@@ -41,9 +42,14 @@ const App = () => {
     { name: 'Pink', value: '#ec4899' },
     { name: 'Yellow', value: '#eab308' },
     { name: 'Indigo', value: '#6366f1' }
-  ];
+  ], []);
 
-  // Dark mode effect
+  // Memoized domain colors map
+  const domainColors = useMemo(() =>
+    domains.reduce((acc, domain) => ({ ...acc, [domain.name]: domain.color }), {}),
+    [domains]);
+
+  // Theme Management
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
@@ -52,27 +58,28 @@ const App = () => {
     }
   }, []);
 
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    if (newMode) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-      localStorage.setItem('theme', 'light');
-    }
-  };
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode(prev => {
+      const newMode = !prev;
+      if (newMode) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+      }
+      return newMode;
+    });
+  }, []);
 
-  // Show notification
-  const showNotification = (message, type = 'info') => {
+  // Notifications
+  const showNotification = useCallback((message, type = 'info') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, []);
 
-  // Data fetching
-  const fetchPublicData = async () => {
+  // Data Actions
+  const fetchPublicData = useCallback(async () => {
     try {
       const [domainsData, newsData] = await Promise.all([
         domainsApi.getAll(),
@@ -84,38 +91,41 @@ const App = () => {
       console.error('Error fetching public data:', error);
       showNotification('Failed to load public data', 'error');
     }
-  };
+  }, [showNotification]);
 
-  const fetchAdminData = async () => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+  const fetchAdminData = useCallback(async () => {
+    if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'domain_admin')) return;
     try {
-      const [usersData, subscribersData] = await Promise.all([
-        usersApi.getAll(),
-        subscribersApi.getAll()
+      const [usersData, adminNewsData] = await Promise.all([
+        currentUser.role === 'super_admin' ? usersApi.getAll() : usersApi.getByDomain(),
+        newsApi.getAllAdmin()
       ]);
+
       setUsers(usersData);
-      setSubscribers(subscribersData);
+      setNews(adminNewsData);
+
+      // Fetch audit logs for super admins
+      if (currentUser.role === 'super_admin') {
+        const auditData = await auditApi.getAll();
+        setAuditLogs(auditData);
+      }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      if (currentUser) {
-        showNotification('Failed to load admin data', 'error');
-      }
+      showNotification('Failed to load admin data', 'error');
     }
-  };
+  }, [currentUser, showNotification]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       await fetchPublicData();
-      if (currentUser && currentUser.role === 'admin') {
+      if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'domain_admin')) {
         await fetchAdminData();
       }
-    } catch (error) {
-      console.error('Error fetching data:', error);
     } finally {
-      setTimeout(() => setIsLoading(false), 500);
+      setTimeout(() => setIsLoading(false), 300);
     }
-  };
+  }, [currentUser, fetchPublicData, fetchAdminData]);
 
   // Auth Effects
   useEffect(() => {
@@ -142,192 +152,175 @@ const App = () => {
 
   useEffect(() => {
     fetchData();
-  }, [currentUser]);
+  }, [fetchData]);
 
   // Auth Handlers
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-        const data = await auth.login(loginForm.email, loginForm.password);
-        
-        localStorage.setItem('accessToken', data.accessToken);
-        setCurrentUser(data.user);
-        setCurrentView(data.user.role === 'admin' ? 'admin' : 'contributor');
-        setShowLogin(false);
-        showNotification(`Welcome back, ${data.user.username}!`, 'success');
-        setLoginForm({ email: '', password: '' });
+      const data = await auth.login(loginForm.email, loginForm.password);
+      localStorage.setItem('accessToken', data.accessToken);
+      setCurrentUser(data.user);
+      setCurrentView(data.user.role === 'super_admin' || data.user.role === 'domain_admin' ? 'admin' : 'contributor');
+      setShowLogin(false);
+      showNotification(`Welcome back, ${data.user.username}!`, 'success');
+      setLoginForm({ email: '', password: '' });
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Login failed';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Login failed', 'error');
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await auth.logout();
     setCurrentUser(null);
     setCurrentView('public');
     setUsers([]);
     setSubscribers([]);
     showNotification('Logged out successfully', 'info');
-  };
+  }, [showNotification]);
 
   // Domain Handlers
   const handleSaveDomain = async (domainData, isEditing) => {
     try {
-        if (isEditing) {
-            await domainsApi.update(domainData.id, domainData);
-            showNotification('Domain updated successfully', 'success');
-        } else {
-            await domainsApi.create(domainData);
-            showNotification('Domain added successfully', 'success');
-        }
-        fetchData();
-        return true;
+      if (isEditing) {
+        await domainsApi.update(domainData.id, domainData);
+        showNotification('Domain updated', 'success');
+      } else {
+        await domainsApi.create(domainData);
+        showNotification('Domain added', 'success');
+      }
+      fetchData();
+      return true;
     } catch (error) {
-        // Show specific validation error messages
-        const errorMessage = error.message || 'Error saving domain';
-        showNotification(errorMessage, 'error');
-        return false;
+      showNotification(error.message || 'Error saving domain', 'error');
+      return false;
     }
-};
+  };
 
   const handleDeleteDomain = async (id) => {
     try {
-        await domainsApi.delete(id);
-        showNotification('Domain deleted successfully', 'success');
-        fetchData();
+      await domainsApi.delete(id);
+      showNotification('Domain deleted', 'success');
+      fetchData();
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Error deleting domain';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Error deleting domain', 'error');
     }
   };
 
   // User Handlers
   const handleSaveUser = async (userData, isEditing) => {
     try {
-        if (isEditing) {
-            await usersApi.update(userData.id, userData);
-            showNotification('User updated successfully', 'success');
-        } else {
-            await usersApi.create(userData);
-            showNotification('User added successfully', 'success');
-        }
-        fetchData();
-        return true;
+      if (isEditing) {
+        await usersApi.update(userData.id, userData);
+        showNotification('User updated', 'success');
+      } else {
+        await usersApi.create(userData);
+        showNotification('User added', 'success');
+      }
+      fetchData();
+      return true;
     } catch (error) {
-        // Show specific validation error messages
-        const errorMessage = error.message || 'Error saving user';
-        showNotification(errorMessage, 'error');
-        return false;
+      showNotification(error.message || 'Error saving user', 'error');
+      return false;
     }
   };
 
   const handleDeleteUser = async (id) => {
     try {
-        await usersApi.delete(id);
-        showNotification('User deleted successfully', 'success');
-        setUsers(users.filter(u => u.id !== id));
+      await usersApi.delete(id);
+      showNotification('User deleted', 'success');
+      setUsers(prev => prev.filter(u => u.id !== id));
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Error deleting user';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Error deleting user', 'error');
     }
-};
+  };
 
   // News Handlers
   const handleSaveNews = async (newsData, isEditing) => {
     try {
-        const payload = {
-            ...newsData,
-            author: currentUser.username,
-            // If contributor, force their domain. If admin, trust the newsData.domain or fallback
-            domain: currentUser.role === 'contributor' ? currentUser.domain : newsData.domain
-        };
+      let domainValue = newsData.domain;
+      if (currentUser.role === 'contributor') {
+        const domainObj = domains.find(d => d.name === currentUser.domain);
+        domainValue = domainObj ? domainObj.id : null;
+      } else if (typeof newsData.domain === 'string') {
+        const domainObj = domains.find(d => d.name === newsData.domain);
+        domainValue = domainObj ? domainObj.id : newsData.domain;
+      }
 
-        if (isEditing) {
-            await newsApi.update(newsData.id, payload);
-            showNotification('News updated successfully', 'success');
-        } else {
-            await newsApi.create(payload);
-            showNotification('News added successfully', 'success');
-        }
-        fetchData();
-        return true;
+      const payload = { ...newsData, author: currentUser.username, domain: domainValue };
+
+      if (isEditing) {
+        await newsApi.update(newsData.id, payload);
+        showNotification('News updated', 'success');
+      } else {
+        await newsApi.create(payload);
+        showNotification('News added', 'success');
+      }
+      fetchData();
+      return true;
     } catch (error) {
-        // Show specific validation error messages
-        const errorMessage = error.message || 'Error saving news';
-        showNotification(errorMessage, 'error');
-        return false;
+      showNotification(error.message || 'Error saving news', 'error');
+      return false;
     }
   };
 
   const handleDeleteNews = async (id) => {
     try {
-        await newsApi.delete(id);
-        showNotification('News deleted successfully', 'success');
-        setNews(news.filter(n => n.id !== id));
+      await newsApi.delete(id);
+      showNotification('News deleted', 'success');
+      setNews(prev => prev.filter(n => n.id !== id));
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Error deleting news';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Error deleting news', 'error');
     }
   };
 
   // Profile Handlers
   const handleOpenProfile = () => {
-    // Ensure profileData has all required fields with proper defaults
-    const initialProfileData = {
-        id: currentUser?.id || '',
-        username: currentUser?.username || '',
-        email: currentUser?.email || '',
-        password: '',
-        role: currentUser?.role || 'user',
-        domain: currentUser?.domain || null
-    };
-    setProfileData(initialProfileData);
+    setProfileData({
+      id: currentUser?.id || '',
+      username: currentUser?.username || '',
+      email: currentUser?.email || '',
+      password: '',
+      role: currentUser?.role || 'user',
+      domain: currentUser?.domain || null
+    });
     setShowProfile(true);
-};
+  };
 
-const handleSaveProfile = async (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
-        const updatedUser = await usersApi.update(currentUser.id, profileData);
-        setCurrentUser({ ...currentUser, username: updatedUser.username, email: updatedUser.email }); // Update local state, password is not returned
-        showNotification('Profile updated successfully', 'success');
-        setShowProfile(false);
+      const updatedUser = await usersApi.update(currentUser.id, profileData);
+      setCurrentUser(prev => ({ ...prev, username: updatedUser.username, email: updatedUser.email }));
+      showNotification('Profile updated', 'success');
+      setShowProfile(false);
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Error updating profile';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Error updating profile', 'error');
     }
-};
+  };
 
   return (
     <div className="app-container">
-      {/* Header */}
       <header className="header">
         <div className="header-container">
           <div className="header-brand">
             <div className="header-logo" style={{ overflow: 'hidden', padding: 0 }}>
-              <img src="/alenia_logo.png" alt="Alenia Pulse" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src="/alenia_logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             <div>
               <h1 className="header-title">Alenia Pulse</h1>
-              <p className="header-subtitle">Consulting & Connection</p>
             </div>
           </div>
 
           <div className="header-actions">
-            <button onClick={toggleDarkMode} className="theme-toggle" aria-label="Toggle dark mode">
+            <button onClick={toggleDarkMode} className="theme-toggle glass" aria-label="Toggle dark mode">
               <div className="theme-toggle-slider">
                 {darkMode ? <Moon className="theme-toggle-icon" /> : <Sun className="theme-toggle-icon" />}
               </div>
             </button>
 
             {currentUser && (
-              <div className="view-switcher">
+              <div className="view-switcher glass">
                 <button
                   onClick={() => setCurrentView('public')}
                   className={`view-switcher-btn ${currentView === 'public' ? 'active' : ''}`}
@@ -342,7 +335,7 @@ const handleSaveProfile = async (e) => {
                   <Mail size={16} />
                   <span>Contributor</span>
                 </button>
-                {currentUser.role === 'admin' && (
+                {(currentUser.role === 'super_admin' || currentUser.role === 'domain_admin') && (
                   <button
                     onClick={() => setCurrentView('admin')}
                     className={`view-switcher-btn ${currentView === 'admin' ? 'active' : ''}`}
@@ -356,22 +349,18 @@ const handleSaveProfile = async (e) => {
 
             {currentUser ? (
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleOpenProfile}
-                  className="btn btn-ghost btn-sm"
-                  style={{ padding: '0px', marginRight: '8px' }}
-                >
+                <button onClick={handleOpenProfile} className="avatar-btn glass">
                   <div className="avatar avatar-sm">
                     {currentUser.username.charAt(0).toUpperCase()}
                   </div>
                 </button>
-                <button onClick={handleLogout} className="btn btn-ghost btn-sm">
+                <button onClick={handleLogout} className="btn btn-ghost btn-sm glass">
                   <LogOut size={16} />
                   <span>Logout</span>
                 </button>
               </div>
             ) : (
-              <button onClick={() => setShowLogin(true)} className="btn btn-primary">
+              <button onClick={() => setShowLogin(true)} className="btn btn-primary glass">
                 <User size={16} />
                 Login
               </button>
@@ -380,14 +369,9 @@ const handleSaveProfile = async (e) => {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="main-content">
         {currentView === 'public' && (
-          <PublicView
-            news={news}
-            domains={domains}
-            isLoading={isLoading}
-          />
+          <PublicView news={news} domains={domains} isLoading={isLoading} />
         )}
 
         {currentView === 'contributor' && currentUser && (
@@ -413,34 +397,33 @@ const handleSaveProfile = async (e) => {
             onSaveNews={handleSaveNews}
             onDeleteNews={handleDeleteNews}
             availableColors={availableColors}
+            domainColors={domainColors}
+            auditLogs={auditLogs}
           />
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="footer">
+      <footer className="footer glass">
         <div className="footer-container">
           <div className="footer-section">
-            <h4>About</h4>
-            <p>Company Newsletter - Your source for internal news and updates across all departments.</p>
+            <h4>About Alenia Pulse</h4>
+            <p>Empowering teams through seamless communication and shared knowledge.</p>
           </div>
           <div className="footer-section">
-            <h4>Quick Links</h4>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">Contact Us</a>
+            <h4>Support</h4>
+            <a href="#">Help Center</a>
+            <a href="#">Safety & Security</a>
           </div>
           <div className="footer-section">
-            <h4>Connect</h4>
-            <p>Stay connected with your team and never miss an update.</p>
+            <h4>Latest</h4>
+            <p>Check out the latest updates in the public view.</p>
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} Company Newsletter. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Alenia Consulting. All rights reserved.</p>
         </div>
       </footer>
 
-      {/* Login Modal */}
       <LoginModal
         show={showLogin}
         onClose={() => setShowLogin(false)}
@@ -449,7 +432,6 @@ const handleSaveProfile = async (e) => {
         setLoginForm={setLoginForm}
       />
 
-      {/* Profile Modal */}
       {currentUser && (
         <UserModal
           show={showProfile}
@@ -463,7 +445,6 @@ const handleSaveProfile = async (e) => {
         />
       )}
 
-      {/* Notification Toast */}
       <Notification notification={notification} />
     </div>
   );

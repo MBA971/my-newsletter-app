@@ -20,8 +20,9 @@ export const createTables = async () => {
         email VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'user',
-        domain VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        domain_id INTEGER, -- Reference to domains.id
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (domain_id) REFERENCES domains(id)
       )
     `);
 
@@ -30,12 +31,19 @@ export const createTables = async () => {
       CREATE TABLE IF NOT EXISTS news (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
-        domain VARCHAR(100) NOT NULL,
+        domain INTEGER NOT NULL, -- Reference to domains.id
         content TEXT NOT NULL,
-        author VARCHAR(100) NOT NULL,
+        author_id INTEGER, -- Reference to users.id
         date DATE NOT NULL DEFAULT CURRENT_DATE,
         editors TEXT[] DEFAULT '{}', -- Store emails of users who can edit this article
-        FOREIGN KEY (domain) REFERENCES domains(name)
+        likes_count INTEGER DEFAULT 0,
+        archived BOOLEAN DEFAULT FALSE,
+        pending_validation BOOLEAN DEFAULT FALSE,
+        validated_by INTEGER, -- Reference to users.id
+        validated_at TIMESTAMP,
+        FOREIGN KEY (domain) REFERENCES domains(id),
+        FOREIGN KEY (author_id) REFERENCES users(id),
+        FOREIGN KEY (validated_by) REFERENCES users(id)
       )
     `);
 
@@ -59,6 +67,17 @@ export const createTables = async () => {
         ip_address VARCHAR(45),
         user_agent TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+
+        // Create likes table for tracking article likes
+        await pool.query(`
+      CREATE TABLE IF NOT EXISTS likes (
+        id SERIAL PRIMARY KEY,
+        news_id INTEGER NOT NULL,
+        ip_address VARCHAR(45) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE CASCADE
       )
     `);
 

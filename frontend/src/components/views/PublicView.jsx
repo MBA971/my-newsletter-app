@@ -1,51 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Newspaper, User, Calendar } from 'lucide-react';
 import SkeletonCard from '../ui/SkeletonCard';
 
 const PublicView = ({ news, domains, isLoading }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterDomain, setFilterDomain] = useState('all');
+    const [likedArticles, setLikedArticles] = useState({});
+    const [articlesLikes, setArticlesLikes] = useState({});
 
-    // Domain colors mapping (could be passed as prop or imported config)
-    const domainColors = {
-        'Hiring': '#3b82f6',
-        'Event': '#8b5cf6',
-        'Journey': '#22c55e',
-        'Communication': '#f97316',
-        'Admin': '#ef4444'
-    };
+    // Memoized domain colors mapping
+    const domainColorsMap = useMemo(() => {
+        const map = {};
+        domains.forEach(d => {
+            map[d.name] = d.color;
+        });
+        return map;
+    }, [domains]);
 
     const getDomainColor = (domainName) => {
-        const domain = domains.find(d => d.name === domainName);
-        return domain?.color || domainColors[domainName] || '#3b82f6';
+        return domainColorsMap[domainName] || '#3b82f6';
     };
 
-    const calculateReadingTime = (content) => {
+    // Initialize/Update likes count when news changes
+    useEffect(() => {
+        if (news?.length > 0) {
+            const initialCounts = {};
+            news.forEach(item => {
+                initialCounts[item.id] = item.likes_count || 0;
+            });
+            setArticlesLikes(initialCounts);
+        }
+    }, [news]);
+
+    const calculateReadingTime = useMemo(() => (content) => {
         const wordsPerMinute = 200;
-        const words = content.split(' ').length;
+        const words = content.split(/\s+/).length;
         return Math.ceil(words / wordsPerMinute);
-    };
+    }, []);
 
     const isNewArticle = (date) => {
         const articleDate = new Date(date);
         const now = new Date();
-        const diffTime = Math.abs(now - articleDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const diffDays = Math.ceil(Math.abs(now - articleDate) / (1000 * 60 * 60 * 24));
         return diffDays <= 7;
     };
 
-    const getFilteredNews = () => {
-        const filtered = news.filter(item =>
-            item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.author.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+    // Filtered news - Optimized
+    const filteredNews = useMemo(() => {
+        let filtered = news || [];
 
-        if (filterDomain === 'all') return filtered;
-        return filtered.filter(n => (n.domain_name || n.domain) === filterDomain);
+        if (searchTerm) {
+            const lowerSearch = searchTerm.toLowerCase();
+            filtered = filtered.filter(item =>
+                item.title?.toLowerCase().includes(lowerSearch) ||
+                item.content?.toLowerCase().includes(lowerSearch) ||
+                item.author?.toLowerCase().includes(lowerSearch)
+            );
+        }
+
+        if (filterDomain !== 'all') {
+            filtered = filtered.filter(n => (n.domain_name || n.domain) === filterDomain);
+        }
+
+        return filtered;
+    }, [news, searchTerm, filterDomain]);
+
+    const handleLike = async (articleId) => {
+        try {
+            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:3002' : '';
+            const response = await fetch(`${apiUrl}/api/news/${articleId}/like`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            if (!response.ok) throw new Error('Failed to like article');
+
+            const data = await response.json();
+            setArticlesLikes(prev => ({ ...prev, [articleId]: data.likes_count }));
+            setLikedArticles(prev => ({ ...prev, [articleId]: data.action === 'liked' }));
+        } catch (error) {
+            console.error('Error liking article:', error);
+        }
     };
-
-    const filteredNews = getFilteredNews();
 
     return (
         <div className="animate-fadeIn">

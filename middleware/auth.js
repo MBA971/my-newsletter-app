@@ -76,7 +76,7 @@ export const checkDomainAccess = (req, res, next) => {
     }
 
     // Admin can access all domains
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'super_admin' || req.user.role === 'domain_admin') {
         return next();
     }
 

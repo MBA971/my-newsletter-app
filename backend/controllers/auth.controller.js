@@ -6,9 +6,9 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Find user by email
+    // Find user
     const userResult = await pool.query(
-      'SELECT id, username, email, password, role, domain FROM users WHERE email = $1',
+      'SELECT id, username, email, password, role, domain_id FROM users WHERE email = $1',
       [email]
     );
     
@@ -20,10 +20,13 @@ export const login = async (req, res) => {
     
     // Convert domain ID to domain name if domain exists
     let domainName = null;
-    if (user.domain) {
+    // Use domain_id for all user types since we've consolidated the columns
+    const domainId = user.domain_id;
+    
+    if (domainId) {
       const domainResult = await pool.query(
         'SELECT name FROM domains WHERE id = $1',
-        [user.domain]
+        [domainId]
       );
       if (domainResult.rows.length > 0) {
         domainName = domainResult.rows[0].name;
@@ -122,7 +125,7 @@ export const refresh = async (req, res) => {
     
     // Find user
     const userResult = await pool.query(
-      'SELECT id, username, email, role, domain FROM users WHERE id = $1 AND email = $2',
+      'SELECT id, username, email, role, domain_id FROM users WHERE id = $1 AND email = $2',
       [decoded.userId, decoded.email]
     );
     
@@ -134,10 +137,13 @@ export const refresh = async (req, res) => {
     
     // Convert domain ID to domain name if domain exists
     let domainName = null;
-    if (user.domain) {
+    // Use domain_id for all user types since we've consolidated the columns
+    const domainId = user.domain_id;
+    
+    if (domainId) {
       const domainResult = await pool.query(
         'SELECT name FROM domains WHERE id = $1',
-        [user.domain]
+        [domainId]
       );
       if (domainResult.rows.length > 0) {
         domainName = domainResult.rows[0].name;

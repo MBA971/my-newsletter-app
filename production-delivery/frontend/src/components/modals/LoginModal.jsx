@@ -15,7 +15,7 @@ const LoginModal = ({ show, onClose, onLogin, loginForm, setLoginForm }) => {
                 </div>
                 <div className="text-center text-sm text-gray-500 mb-2 flex items-center justify-center">
                     <Info size={14} className="mr-1" />
-                    Version 1.2.1
+                    Version 1.2.2
                 </div>
                 <form onSubmit={onLogin} className="modal-body">
                     <div className="form-group">

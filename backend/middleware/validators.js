@@ -150,7 +150,7 @@ export const validateNewsCreation = [
         .custom((value, { req }) => {
             // For contributors, domain is required and will be set by the system
             // For admins, domain must be provided
-            if (req.user && req.user.role === 'admin') {
+            if (req.user && (req.user.role === 'super_admin' || req.user.role === 'domain_admin')) {
                 if (!value || value.toString().trim() === '') {
                     throw new Error('Domain is required for admin-created articles');
                 }

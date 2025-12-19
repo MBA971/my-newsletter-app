@@ -75,7 +75,7 @@ export const domains = {
             headers: getHeaders(true),
             body: JSON.stringify(domainData),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
@@ -85,7 +85,7 @@ export const domains = {
             }
             throw new Error('Failed to create domain');
         }
-        
+
         return response.json();
     },
 
@@ -95,7 +95,7 @@ export const domains = {
             headers: getHeaders(true),
             body: JSON.stringify(domainData),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
@@ -105,7 +105,7 @@ export const domains = {
             }
             throw new Error('Failed to update domain');
         }
-        
+
         return response.json();
     },
 
@@ -114,7 +114,7 @@ export const domains = {
             method: 'DELETE',
             headers: getHeaders(true),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.error) {
@@ -122,7 +122,7 @@ export const domains = {
             }
             throw new Error('Failed to delete domain');
         }
-        
+
         return response.json();
     }
 };
@@ -137,11 +137,43 @@ export const news = {
         return response.json();
     },
 
+    getAllAdmin: async () => {
+        const response = await fetch(`${API_URL}/api/news/admin`, {
+            headers: getHeaders(true)
+        });
+        if (!response.ok) throw new Error('Failed to fetch admin news');
+        return response.json();
+    },
+
+    getContributorNews: async () => {
+        const response = await fetch(`${API_URL}/api/news/contributor`, {
+            headers: getHeaders(true)
+        });
+        if (!response.ok) throw new Error('Failed to fetch contributor news');
+        return response.json();
+    },
+
     getById: async (id) => {
         const response = await fetch(`${API_URL}/api/news/${id}`, {
             headers: getHeaders(!!localStorage.getItem('accessToken'))
         });
         if (!response.ok) throw new Error('Failed to fetch news');
+        return response.json();
+    },
+
+    getArchived: async () => {
+        const response = await fetch(`${API_URL}/api/news/archived`, {
+            headers: getHeaders(true)
+        });
+        if (!response.ok) throw new Error('Failed to fetch archived news');
+        return response.json();
+    },
+
+    getPendingValidation: async () => {
+        const response = await fetch(`${API_URL}/api/news/pending-validation`, {
+            headers: getHeaders(true)
+        });
+        if (!response.ok) throw new Error('Failed to fetch pending validation news');
         return response.json();
     },
 
@@ -151,7 +183,7 @@ export const news = {
             headers: getHeaders(true),
             body: JSON.stringify(newsData),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
@@ -161,7 +193,7 @@ export const news = {
             }
             throw new Error('Failed to create news');
         }
-        
+
         return response.json();
     },
 
@@ -171,7 +203,7 @@ export const news = {
             headers: getHeaders(true),
             body: JSON.stringify(newsData),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
@@ -181,7 +213,7 @@ export const news = {
             }
             throw new Error('Failed to update news');
         }
-        
+
         return response.json();
     },
 
@@ -191,6 +223,24 @@ export const news = {
             headers: getHeaders(true),
         });
         if (!response.ok) throw new Error('Failed to delete news');
+        return response.json();
+    },
+
+    toggleArchive: async (id) => {
+        const response = await fetch(`${API_URL}/api/news/${id}/toggle-archive`, {
+            method: 'POST',
+            headers: getHeaders(true),
+        });
+        if (!response.ok) throw new Error('Failed to toggle archive status');
+        return response.json();
+    },
+
+    validate: async (id) => {
+        const response = await fetch(`${API_URL}/api/news/${id}/validate`, {
+            method: 'POST',
+            headers: getHeaders(true),
+        });
+        if (!response.ok) throw new Error('Failed to validate news');
         return response.json();
     }
 };
@@ -205,13 +255,21 @@ export const users = {
         return response.json();
     },
 
+    getByDomain: async () => {
+        const response = await fetch(`${API_URL}/api/users/by-domain`, {
+            headers: getHeaders(true),
+        });
+        if (!response.ok) throw new Error('Failed to fetch users by domain');
+        return response.json();
+    },
+
     create: async (userData) => {
         const response = await fetch(`${API_URL}/api/users`, {
             method: 'POST',
             headers: getHeaders(true),
             body: JSON.stringify(userData),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
@@ -221,7 +279,7 @@ export const users = {
             }
             throw new Error('Failed to create user');
         }
-        
+
         return response.json();
     },
 
@@ -231,7 +289,7 @@ export const users = {
             headers: getHeaders(true),
             body: JSON.stringify(userData),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
@@ -241,7 +299,7 @@ export const users = {
             }
             throw new Error('Failed to update user');
         }
-        
+
         return response.json();
     },
 
@@ -261,7 +319,7 @@ export const subscribers = {
         const response = await fetch(`${API_URL}/api/subscribers`, {
             headers: getHeaders(true),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.error) {
@@ -269,7 +327,7 @@ export const subscribers = {
             }
             throw new Error('Failed to fetch subscribers');
         }
-        
+
         return response.json();
     }
 };
@@ -280,7 +338,7 @@ export const audit = {
         const response = await fetch(`${API_URL}/api/audit`, {
             headers: getHeaders(true),
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.error) {
@@ -288,7 +346,7 @@ export const audit = {
             }
             throw new Error('Failed to fetch audit logs');
         }
-        
+
         return response.json();
     }
 };

@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-12-19
+
+### Added
+- Redesigned UI/UX with cleaner, more consistent design across all views
+- Enhanced admin dashboard with improved statistics and navigation
+- Better responsive design for all device sizes
+- Improved accessibility features
+
+### Changed
+- Restored original clean design from ALENIA_Pulse-main backup
+- Updated ContributorView with simplified layout and consistent styling
+- Updated PublicView with cleaner article presentation
+- Improved domain color coding consistency across all views
+
+### Fixed
+- UI inconsistencies between different views
+- Styling issues with domain badges and action buttons
+- Layout problems with empty states
+
 ## [1.2.1] - 2025-12-08
 
 ### Added

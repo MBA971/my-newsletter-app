@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Calendar, User, Shield, Search, LayoutGrid, FileText, Activity, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, User, Shield, Search, LayoutGrid, FileText, Activity, Users, Archive, CheckCircle } from 'lucide-react';
 import DomainModal from '../modals/DomainModal';
 import UserModal from '../modals/UserModal';
 import NewsModal from '../modals/NewsModal';
@@ -36,7 +36,16 @@ const AdminView = ({
     // Audit Log State
     const [auditLogs, setAuditLogs] = useState([]);
     const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
-    const [activeTab, setActiveTab] = useState('domains'); // domains, users, news, audit
+    
+    // Archived News State
+    const [archivedNews, setArchivedNews] = useState([]);
+    const [loadingArchivedNews, setLoadingArchivedNews] = useState(false);
+    
+    // Pending Validation News State
+    const [pendingValidationNews, setPendingValidationNews] = useState([]);
+    const [loadingPendingValidationNews, setLoadingPendingValidationNews] = useState(false);
+    
+    const [activeTab, setActiveTab] = useState('domains'); // domains, users, news, archived, audit, validation
 
     // Search State
     const [searchTerm, setSearchTerm] = useState('');
@@ -44,6 +53,64 @@ const AdminView = ({
     // Reset search when tab changes
     useEffect(() => {
         setSearchTerm('');
+    }, [activeTab]);
+
+    // Load audit logs
+    useEffect(() => {
+        const loadAuditLogs = async () => {
+            // Only super admins can access audit logs
+            if (activeTab === 'audit' && currentUser.role === 'super_admin') {
+                setLoadingAuditLogs(true);
+                try {
+                    const logs = await auditApi.getAll();
+                    setAuditLogs(logs);
+                } catch (error) {
+                    console.error('Failed to load audit logs:', error);
+                } finally {
+                    setLoadingAuditLogs(false);
+                }
+            }
+        };
+
+        loadAuditLogs();
+    }, [activeTab, currentUser]);
+
+    // Load archived news
+    useEffect(() => {
+        const loadArchivedNews = async () => {
+            if (activeTab === 'archived') {
+                setLoadingArchivedNews(true);
+                try {
+                    const archived = await newsApi.getArchived();
+                    setArchivedNews(archived);
+                } catch (error) {
+                    console.error('Failed to load archived news:', error);
+                } finally {
+                    setLoadingArchivedNews(false);
+                }
+            }
+        };
+
+        loadArchivedNews();
+    }, [activeTab]);
+
+    // Load pending validation news
+    useEffect(() => {
+        const loadPendingValidationNews = async () => {
+            if (activeTab === 'validation') {
+                setLoadingPendingValidationNews(true);
+                try {
+                    const pending = await newsApi.getPendingValidation();
+                    setPendingValidationNews(pending);
+                } catch (error) {
+                    console.error('Failed to load pending validation news:', error);
+                } finally {
+                    setLoadingPendingValidationNews(false);
+                }
+            }
+        };
+
+        loadPendingValidationNews();
     }, [activeTab]);
 
     // Helpers
@@ -65,25 +132,6 @@ const AdminView = ({
             ? name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
             : '??';
     };
-
-    // Load audit logs
-    useEffect(() => {
-        const loadAuditLogs = async () => {
-            if (activeTab === 'audit') {
-                setLoadingAuditLogs(true);
-                try {
-                    const logs = await auditApi.getAll();
-                    setAuditLogs(logs);
-                } catch (error) {
-                    console.error('Failed to load audit logs:', error);
-                } finally {
-                    setLoadingAuditLogs(false);
-                }
-            }
-        };
-
-        loadAuditLogs();
-    }, [activeTab]);
 
     // Handlers for Domains
     const handleEditDomain = (domain, e) => {
@@ -133,6 +181,16 @@ const AdminView = ({
     const handleUserSubmit = async (e) => {
         e.preventDefault();
         const userData = editingUser ? { ...newUser, id: editingUser.id } : newUser;
+        
+        // For domain admins, ensure they can only assign users to their own domain
+        if (currentUser.role === 'domain_admin') {
+            // Find the domain object for the current user's domain
+            const currentUserDomain = domains.find(d => d.name === currentUser.domain);
+            if (currentUserDomain) {
+                userData.domain = String(currentUserDomain.id);
+            }
+        }
+        
         const success = await onSaveUser(userData, !!editingUser);
         if (success) closeUserModal();
     };
@@ -174,6 +232,16 @@ const AdminView = ({
     const handleNewsSubmit = async (e) => {
         e.preventDefault();
         const newsData = editingNews ? { ...newNews, id: editingNews.id } : newNews;
+        
+        // For domain admins, ensure they can only create/edit news in their domain
+        if (currentUser.role === 'domain_admin') {
+            // Find the domain ID for the current user's domain
+            const currentUserDomain = domains.find(d => d.name === currentUser.domain);
+            if (currentUserDomain) {
+                newsData.domain = String(currentUserDomain.id);
+            }
+        }
+        
         const success = await onSaveNews(newsData, !!editingNews);
         if (success) closeNewsModal();
     };
@@ -184,25 +252,91 @@ const AdminView = ({
         setNewNews({ title: '', content: '', domain: '' });
     };
 
+    // New function to toggle archive status
+    const handleToggleArchive = async (newsId) => {
+        try {
+            // Make API call to toggle archive status
+            await newsApi.toggleArchive(newsId);
+            
+            // Refresh the data based on current tab
+            if (activeTab === 'news') {
+                // Refresh the main news list
+                window.location.reload();
+            } else if (activeTab === 'archived') {
+                // Refresh the archived news list
+                const archived = await newsApi.getArchived();
+                setArchivedNews(archived);
+            }
+        } catch (error) {
+            console.error('Error toggling archive status:', error);
+            alert('Failed to toggle archive status. Please try again.');
+        }
+    };
+
+    // New function to validate news
+    const handleValidateNews = async (newsId, approve) => {
+        try {
+            if (approve) {
+                // Make API call to validate the news
+                await newsApi.validate(newsId);
+                
+                // Refresh the pending validation news list
+                const pending = await newsApi.getPendingValidation();
+                setPendingValidationNews(pending);
+                
+                alert('Article validated successfully!');
+            } else {
+                // For rejection, we'll archive the article
+                await newsApi.toggleArchive(newsId);
+                
+                // Refresh the pending validation news list
+                const pending = await newsApi.getPendingValidation();
+                setPendingValidationNews(pending);
+                
+                alert('Article rejected and archived!');
+            }
+        } catch (error) {
+            console.error('Error validating news:', error);
+            alert('Failed to validate news. Please try again.');
+        }
+    };
+
     const formatTimestamp = (timestamp) => {
         return new Date(timestamp).toLocaleString();
     };
 
     // Filter Logic
     const filteredUsers = users.filter(user =>
-        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+        (currentUser.role === 'super_admin' || user.domain === currentUser.domain) &&
+        (user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     const filteredNews = news.filter(item =>
-        item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (currentUser.role === 'super_admin' || item.domain === currentUser.domain) &&
+        (item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.domain.toLowerCase().includes(searchTerm.toLowerCase())
+        item.domain.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const filteredArchivedNews = archivedNews.filter(item =>
+        (currentUser.role === 'super_admin' || item.domain === currentUser.domain) &&
+        (item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.domain.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     const filteredAuditLogs = auditLogs.filter(log =>
-        log.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.action.toLowerCase().includes(searchTerm.toLowerCase())
+        currentUser.role === 'super_admin' &&
+        (log.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.action.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const filteredPendingValidationNews = pendingValidationNews.filter(item =>
+        (currentUser.role === 'super_admin' || item.domain === currentUser.domain) &&
+        (item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.domain.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     // Dashboard Stats
@@ -268,13 +402,15 @@ const AdminView = ({
                         <Shield size={18} />
                         Domains
                     </button>
-                    <button
-                        className={`tab ${activeTab === 'users' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('users')}
-                    >
-                        <User size={18} />
-                        Users
-                    </button>
+                    {currentUser.role === 'super_admin' && (
+                        <button
+                            className={`tab ${activeTab === 'users' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('users')}
+                        >
+                            <User size={18} />
+                            Users
+                        </button>
+                    )}
                     <button
                         className={`tab ${activeTab === 'news' ? 'active' : ''}`}
                         onClick={() => setActiveTab('news')}
@@ -283,11 +419,27 @@ const AdminView = ({
                         News
                     </button>
                     <button
-                        className={`tab ${activeTab === 'audit' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('audit')}
+                        className={`tab ${activeTab === 'archived' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('archived')}
                     >
-                        <Activity size={18} />
-                        Audit Log
+                        <Archive size={18} />
+                        Archived
+                    </button>
+                    {currentUser.role === 'super_admin' && (
+                        <button
+                            className={`tab ${activeTab === 'audit' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('audit')}
+                        >
+                            <Activity size={18} />
+                            Audit Log
+                        </button>
+                    )}
+                    <button
+                        className={`tab ${activeTab === 'validation' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('validation')}
+                    >
+                        <Calendar size={18} />
+                        Validation
                     </button>
                 </div>
             </div>
@@ -330,25 +482,34 @@ const AdminView = ({
                                         {domain.name.charAt(0)}
                                     </div>
                                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={(e) => handleEditDomain(domain, e)}
-                                            className="btn-icon"
-                                            style={{ color: 'var(--primary-600)' }}
-                                        >
-                                            <Edit size={18} />
-                                        </button>
-                                        <button
-                                            onClick={() => onDeleteDomain(domain.id)}
-                                            className="btn-icon"
-                                            style={{ color: 'var(--error-600)' }}
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
+                                        {/* Domain admins can only edit their assigned domain */}
+                                        {(currentUser.role === 'super_admin' || 
+                                          (currentUser.role === 'domain_admin' && domain.name === currentUser.domain)) && (
+                                            <button
+                                                onClick={(e) => handleEditDomain(domain, e)}
+                                                className="btn-icon"
+                                                style={{ color: 'var(--primary-600)' }}
+                                                title="Edit domain"
+                                            >
+                                                <Edit size={18} />
+                                            </button>
+                                        )}
+                                        {/* Only super admins can delete domains */}
+                                        {currentUser.role === 'super_admin' && (
+                                            <button
+                                                onClick={() => onDeleteDomain(domain.id)}
+                                                className="btn-icon"
+                                                style={{ color: 'var(--error-600)' }}
+                                                title="Delete domain"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                                 <h3 className="text-xl font-bold mb-1">{domain.name}</h3>
                                 <div className="flex items-center justify-between text-sm text-tertiary">
-                                    <span>{domain.articleCount || 0} articles</span>
+                                    <span>{domain.articlecount || domain.articleCount || 0} articles</span>
                                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--success-500)' }}></div>
                                 </div>
                             </div>
@@ -381,7 +542,7 @@ const AdminView = ({
                         userData={newUser}
                         setUserData={setNewUser}
                         isEditing={!!editingUser}
-                        domains={domains}
+                        domains={currentUser.role === 'domain_admin' ? domains.filter(d => d.name === currentUser.domain) : domains}
                     />
 
                     {/* Search Bar */}
@@ -424,14 +585,18 @@ const AdminView = ({
                                         </td>
                                         <td className="text-secondary">{user.email}</td>
                                         <td>
-                                            <span className={`badge ${user.role === 'admin' ? 'badge-success' :
-                                                    user.role === 'contributor' ? 'badge-warning' : 'badge-info'
-                                                }`}>
+                                            <span className={`badge ${
+                                                user.role === 'super_admin' ? 'badge-danger' :
+                                                user.role === 'domain_admin' ? 'badge-info' :
+                                                user.role === 'contributor' ? 'badge-warning' : 'badge-secondary'
+                                            }`}>
                                                 {user.role}
                                             </span>
                                         </td>
                                         <td>
-                                            {user.domain ? (
+                                            {(user.role === 'super_admin' || !user.domain || user.domain === 'No Domain Assigned') ? (
+                                                <span className="text-tertiary">All domains</span>
+                                            ) : (
                                                 <div className="flex items-center gap-2">
                                                     <div
                                                         className="w-2 h-2 rounded-full"
@@ -439,8 +604,6 @@ const AdminView = ({
                                                     ></div>
                                                     {user.domain}
                                                 </div>
-                                            ) : (
-                                                <span className="text-tertiary">-</span>
                                             )}
                                         </td>
                                         <td className="text-tertiary">
@@ -452,6 +615,7 @@ const AdminView = ({
                                                     onClick={(e) => handleEditUser(user, e)}
                                                     className="btn-icon"
                                                     style={{ color: 'var(--primary-600)' }}
+                                                    title="Edit user"
                                                 >
                                                     <Edit size={16} />
                                                 </button>
@@ -459,6 +623,7 @@ const AdminView = ({
                                                     onClick={() => onDeleteUser(user.id)}
                                                     className="btn-icon"
                                                     style={{ color: 'var(--error-600)' }}
+                                                    title="Delete user"
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
@@ -544,7 +709,7 @@ const AdminView = ({
                                                 style={{
                                                     backgroundColor: `${domainColors[item.domain]}15`,
                                                     color: domainColors[item.domain],
-                                                    borderColor: `${domainColors[item.domain]}30`
+                                                    borderColor: `${domainColors[item.domain]}30`,
                                                 }}
                                             >
                                                 {item.domain}
@@ -565,13 +730,23 @@ const AdminView = ({
                                                     onClick={(e) => handleEditNews(item, e)}
                                                     className="btn-icon"
                                                     style={{ color: 'var(--primary-600)' }}
+                                                    title="Edit article"
                                                 >
                                                     <Edit size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleToggleArchive(item.id)}
+                                                    className="btn-icon"
+                                                    style={{ color: 'var(--warning-600)' }}
+                                                    title="Archive/Unarchive article"
+                                                >
+                                                    <Archive size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => onDeleteNews(item.id)}
                                                     className="btn-icon"
                                                     style={{ color: 'var(--error-600)' }}
+                                                    title="Delete article"
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
@@ -586,6 +761,100 @@ const AdminView = ({
                                 <p>No news articles found matching "{searchTerm}"</p>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Archived News Tab */}
+            {activeTab === 'archived' && (
+                <div className="animate-fadeIn">
+                    <div className="section-header">
+                        <div>
+                            <h2 className="section-title">Archived Articles</h2>
+                            <p className="text-secondary mt-1">View and manage archived newsletter content</p>
+                        </div>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="mb-6 relative max-w-md">
+                        <div className="search-container">
+                            <Search className="search-icon" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Search archived articles..."
+                                className="search-input"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="table-container">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Domain</th>
+                                    <th>Author</th>
+                                    <th>Date</th>
+                                    <th className="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loadingArchivedNews ? (
+                                    <tr>
+                                        <td colSpan="5" className="text-center py-4">
+                                            Loading archived articles...
+                                        </td>
+                                    </tr>
+                                ) : filteredArchivedNews.length > 0 ? (
+                                    filteredArchivedNews.map(item => (
+                                        <tr key={item.id} className="group">
+                                            <td className="font-medium text-primary">{item.title}</td>
+                                            <td>
+                                                <span
+                                                    className="badge shadow-sm border border-transparent"
+                                                    style={{
+                                                        backgroundColor: `${domainColors[item.domain]}15`,
+                                                        color: domainColors[item.domain],
+                                                        borderColor: `${domainColors[item.domain]}30`,
+                                                    }}
+                                                >
+                                                    {item.domain}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="avatar avatar-sm" style={{ width: '24px', height: '24px', fontSize: '10px' }}>
+                                                        {getInitials(item.author)}
+                                                    </div>
+                                                    {item.author}
+                                                </div>
+                                            </td>
+                                            <td className="text-tertiary">{new Date(item.date).toLocaleDateString()}</td>
+                                            <td>
+                                                <div className="flex gap-2 justify-end">
+                                                    <button
+                                                        onClick={() => handleToggleArchive(item.id)}
+                                                        className="btn-icon"
+                                                        style={{ color: 'var(--success-600)' }}
+                                                        title="Restore article"
+                                                    >
+                                                        <Archive size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="5" className="text-center py-4">
+                                            <p>No archived articles found matching "{searchTerm}"</p>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
@@ -606,7 +875,7 @@ const AdminView = ({
                             <Search className="search-icon" size={18} />
                             <input
                                 type="text"
-                                placeholder="Search logs..."
+                                placeholder="Search audit logs..."
                                 className="search-input"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -614,63 +883,158 @@ const AdminView = ({
                         </div>
                     </div>
 
-                    {loadingAuditLogs ? (
-                        <div className="flex justify-center py-12">
-                            <div className="spinner spinner-lg"></div>
-                        </div>
-                    ) : (
-                        <div className="table-container">
-                            <table className="data-table">
-                                <thead>
+                    <div className="table-container">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>Timestamp</th>
+                                    <th>IP Address</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loadingAuditLogs ? (
                                     <tr>
-                                        <th>User</th>
-                                        <th>Action</th>
-                                        <th>IP Address</th>
-                                        <th>Timestamp</th>
-                                        <th>User Agent</th>
+                                        <td colSpan="4" className="text-center py-4">
+                                            Loading audit logs...
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredAuditLogs.map(log => (
-                                        <tr key={log.id}>
+                                ) : filteredAuditLogs.length > 0 ? (
+                                    filteredAuditLogs.map(log => (
+                                        <tr key={log.id} className="group">
                                             <td>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="avatar avatar-sm">
-                                                        {getInitials(log.username || 'System')}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="avatar avatar-sm" style={{ width: '24px', height: '24px', fontSize: '10px' }}>
+                                                        {getInitials(log.username)}
                                                     </div>
-                                                    <div>
-                                                        <div className="font-medium text-primary">{log.username}</div>
-                                                        <div className="text-xs text-tertiary">{log.email}</div>
-                                                    </div>
+                                                    {log.username}
                                                 </div>
                                             </td>
                                             <td>
-                                                <span className={`badge ${log.action === 'login' ? 'badge-success' :
-                                                        log.action.includes('delete') ? 'badge-error' :
-                                                            'badge-warning'
-                                                    }`}>
+                                                <span className={`badge ${
+                                                    log.action === 'login' ? 'badge-success' : 
+                                                    log.action === 'logout' ? 'badge-info' : 'badge-secondary'
+                                                }`}>
                                                     {log.action}
                                                 </span>
                                             </td>
-                                            <td className="text-sm text-secondary">{log.ip_address || 'Unknown'}</td>
-                                            <td className="text-secondary text-sm">{formatTimestamp(log.timestamp)}</td>
+                                            <td className="text-tertiary">{formatTimestamp(log.timestamp)}</td>
+                                            <td className="text-tertiary">{log.ip_address}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="4" className="text-center py-4">
+                                            <p>No audit logs found matching "{searchTerm}"</p>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Validation Tab */}
+            {activeTab === 'validation' && (
+                <div className="animate-fadeIn">
+                    <div className="section-header">
+                        <div>
+                            <h2 className="section-title">Pending Validation</h2>
+                            <p className="text-secondary mt-1">Review and validate pending news articles</p>
+                        </div>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="mb-6 relative max-w-md">
+                        <div className="search-container">
+                            <Search className="search-icon" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Search pending validation..."
+                                className="search-input"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="table-container">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Domain</th>
+                                    <th>Author</th>
+                                    <th>Date</th>
+                                    <th className="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loadingPendingValidationNews ? (
+                                    <tr>
+                                        <td colSpan="5" className="text-center py-4">
+                                            Loading pending validation...
+                                        </td>
+                                    </tr>
+                                ) : filteredPendingValidationNews.length > 0 ? (
+                                    filteredPendingValidationNews.map(item => (
+                                        <tr key={item.id} className="group">
+                                            <td className="font-medium text-primary">{item.title}</td>
                                             <td>
-                                                <div className="text-truncate text-xs text-tertiary" style={{ maxWidth: '200px' }} title={log.user_agent}>
-                                                    {log.user_agent || 'Unknown'}
+                                                <span
+                                                    className="badge shadow-sm border border-transparent"
+                                                    style={{
+                                                        backgroundColor: `${domainColors[item.domain]}15`,
+                                                        color: domainColors[item.domain],
+                                                        borderColor: `${domainColors[item.domain]}30`,
+                                                    }}
+                                                >
+                                                    {item.domain}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="avatar avatar-sm" style={{ width: '24px', height: '24px', fontSize: '10px' }}>
+                                                        {getInitials(item.author)}
+                                                    </div>
+                                                    {item.author}
+                                                </div>
+                                            </td>
+                                            <td className="text-tertiary">{new Date(item.date).toLocaleDateString()}</td>
+                                            <td>
+                                                <div className="flex gap-2 justify-end">
+                                                    <button
+                                                        onClick={() => handleValidateNews(item.id, true)}
+                                                        className="btn-icon"
+                                                        style={{ color: 'var(--success-600)' }}
+                                                        title="Approve article"
+                                                    >
+                                                        <CheckCircle size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleValidateNews(item.id, false)}
+                                                        className="btn-icon"
+                                                        style={{ color: 'var(--error-600)' }}
+                                                        title="Reject article"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-
-                            {filteredAuditLogs.length === 0 && (
-                                <div className="empty-state">
-                                    <p>No audit logs found.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="5" className="text-center py-4">
+                                            <p>No pending validation articles found matching "{searchTerm}"</p>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>

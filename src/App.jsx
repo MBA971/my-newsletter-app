@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, LogOut, Plus, Trash2, Calendar, Sun, Moon, Mail, Newspaper, Edit } from 'lucide-react';
+import { Search, User, LogOut, Plus, Trash2, Calendar, Sun, Moon, Mail, Newspaper, Edit, X } from 'lucide-react';
 import './App.css';
+
+// Import services
+import * as newsService from './services/news.service.js';
+import * as domainsService from './services/domains.service.js';
+import * as usersService from './services/users.service.js';
+import * as authService from './services/auth.service.js';
+
+// Import components
+import { PublicView, ContributorView, AdminView, LoginForm, NewsModal, UserModal, DomainModal, Notification } from './components';
+
+// Import hooks
+import { useDataFetching } from './hooks/useDataFetching.js';
 
 const App = () => {
   // State management
@@ -8,6 +20,8 @@ const App = () => {
   const [news, setNews] = useState([]);
   const [users, setUsers] = useState([]);
   const [subscribers, setSubscribers] = useState([]);
+  const [contributorNews, setContributorNews] = useState([]);
+  const [adminNews, setAdminNews] = useState([]);
   const [currentView, setCurrentView] = useState('public');
   const [currentUser, setCurrentUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -73,71 +87,38 @@ const App = () => {
   // Fetch public data from the backend
   const fetchPublicData = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      console.log('Fetching public data from:', apiUrl);
-
-      // Get token from localStorage if available
-      const token = localStorage.getItem('accessToken');
-      console.log('Token from localStorage (public data):', token);
-
-      const headers = token ? {
-        'Authorization': `Bearer ${token}`
-      } : {};
-
-      const [domainsRes, newsRes] = await Promise.all([
-        fetch(`${apiUrl}/api/domains`, { headers }),
-        fetch(`${apiUrl}/api/news`, { headers })
+      // Get domains and news in parallel
+      const [domainsData, newsData] = await Promise.all([
+        domainsService.fetchDomains(),
+        newsService.fetchPublicNews()
       ]);
-
-      console.log('Domains response status:', domainsRes.status);
-      console.log('News response status:', newsRes.status);
-
-      if (domainsRes.ok && newsRes.ok) {
-        setDomains(await domainsRes.json());
-        setNews(await newsRes.json());
-      }
+      
+      setDomains(domainsData);
+      setNews(newsData);
     } catch (error) {
       console.error('Error fetching public data:', error);
       showNotification('Failed to load public data', 'error');
     }
   };
 
-  // Fetch admin data from the backend
-  const fetchAdminData = async () => {
+  // Fetch contributor data from the backend
+  const fetchContributorData = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      console.log('Fetching admin data from:', apiUrl);
-
-      // Get token from localStorage
-      const token = localStorage.getItem('accessToken');
-      console.log('Token from localStorage:', token);
-
-      const headers = token ? {
-        'Authorization': `Bearer ${token}`
-      } : {};
-
-      const [usersRes, subscribersRes] = await Promise.all([
-        fetch(`${apiUrl}/api/users`, { headers }),
-        fetch(`${apiUrl}/api/subscribers`, { headers })
-      ]);
-
-      console.log('Users response status:', usersRes.status);
-      console.log('Subscribers response status:', subscribersRes.status);
-
-      if (usersRes.ok && subscribersRes.ok) {
-        setUsers(await usersRes.json());
-        setSubscribers(await subscribersRes.json());
-      } else {
-        console.error('Failed to fetch admin data. Users status:', usersRes.status, 'Subscribers status:', subscribersRes.status);
-        if (usersRes.status === 401 || subscribersRes.status === 401) {
-          showNotification('Authentication failed. Please log in again.', 'error');
-          setCurrentUser(null);
-        }
+      if (!authService.getCurrentUser()) {
+        return;
       }
+      
+      const jsonData = await newsService.fetchContributorNews();
+      setContributorNews(jsonData);
     } catch (error) {
-      console.error('Error fetching admin data:', error);
-      showNotification('Failed to load admin data', 'error');
+      console.error('Error fetching contributor data:', error);
+      showNotification('Failed to load contributor data: ' + error.message, 'error');
     }
+  };
+
+  // Test function to manually fetch contributor data
+  const testFetchContributorData = async () => {
+    await fetchContributorData();
   };
 
   // Fetch data from backend
@@ -146,9 +127,12 @@ const App = () => {
     try {
       // Always fetch public data
       await fetchPublicData();
-
+      // Fetch contributor data if user is logged in
+      if (currentUser) {
+        await fetchContributorData();
+      }
       // Fetch admin data only if user is logged in as admin
-      if (currentUser && currentUser.role === 'admin') {
+      if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'domain_admin')) {
         await fetchAdminData();
       }
     } catch (error) {
@@ -159,30 +143,42 @@ const App = () => {
     }
   };
 
+  // Fetch admin data from the backend
+  const fetchAdminData = async () => {
+    try {
+      // For domain admins, fetch users by domain
+      // For super admins, fetch all users
+      let usersData;
+      if (currentUser && currentUser.role === 'domain_admin') {
+        usersData = await usersService.fetchUsersByDomain();
+        console.log('[DEBUG] Domain admin users data:', JSON.stringify(usersData, null, 2));
+      } else {
+        usersData = await usersService.fetchUsers();
+        console.log('[DEBUG] Super admin users data:', JSON.stringify(usersData, null, 2));
+      }
+      
+      const subscribersData = await usersService.fetchSubscribers();
+      console.log('[DEBUG] Subscribers data:', JSON.stringify(subscribersData, null, 2));
+      
+      // Fetch all news for admin users
+      const adminNewsData = await newsService.fetchAllNewsForAdmin();
+      console.log('[DEBUG] Admin news data:', JSON.stringify(adminNewsData, null, 2));
+      
+      console.log('[DEBUG] Setting users data:', JSON.stringify(usersData, null, 2));
+      setUsers(usersData);
+      setSubscribers(subscribersData);
+      setAdminNews(adminNewsData);
+    } catch (error) {
+      console.error('Error fetching admin data:', error);
+      showNotification('Failed to load admin data', 'error');
+    }
+  };
+
   useEffect(() => {
     // Initialize currentUser from localStorage on app load
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      // Verify token and set currentUser
-      // This is a simplified approach - in a real app, you'd want to verify the token with the server
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.exp * 1000 > Date.now()) {
-          setCurrentUser({
-            id: payload.userId,
-            email: payload.email,
-            username: payload.username,
-            role: payload.role,
-            domain: payload.domain
-          });
-        } else {
-          // Token expired, remove it
-          localStorage.removeItem('accessToken');
-        }
-      } catch (error) {
-        console.error('Error parsing token:', error);
-        localStorage.removeItem('accessToken');
-      }
+    const user = authService.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
     }
   }, []);
 
@@ -200,40 +196,21 @@ const App = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      console.log('Logging in to:', `${apiUrl}/api/auth/login`);
-      const response = await fetch(`${apiUrl}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm)
-      });
-
-      console.log('Login response status:', response.status);
-      console.log('Login response headers:', [...response.headers.entries()]);
-
-      if (response.ok) {
-        const data = await response.json();
-        const user = data.user;
-        const token = data.accessToken;
-
-        // Store token in localStorage
-        localStorage.setItem('accessToken', token);
-
-        console.log('Login successful, user:', user);
-        setCurrentUser(user);
-        setCurrentView(user.role === 'admin' ? 'admin' : 'contributor');
-        setShowLogin(false);
-        showNotification(`Welcome back, ${user.username}!`, 'success');
-        setLoginForm({ email: '', password: '' });
-
-        // Fetch admin data if user is admin
-        if (user.role === 'admin') {
-          await fetchAdminData();
-        }
-      } else {
-        const error = await response.json();
-        console.error('Login failed:', error);
-        showNotification(error.error || 'Login failed', 'error');
+      const data = await authService.login(loginForm);
+      const user = data.user;
+      const token = data.accessToken;
+      
+      // Store token in localStorage
+      localStorage.setItem('accessToken', token);
+      setCurrentUser(user);
+      setCurrentView(user.role === 'super_admin' || user.role === 'domain_admin' ? 'admin' : 'contributor');
+      setShowLogin(false);
+      showNotification(`Welcome back, ${user.username}!`, 'success');
+      setLoginForm({ email: '', password: '' });
+      
+      // Fetch admin data if user is admin
+      if (user.role === 'super_admin' || user.role === 'domain_admin') {
+        await fetchAdminData();
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -244,25 +221,7 @@ const App = () => {
   // Handle logout
   const handleLogout = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-      // Get token from localStorage
-      const token = localStorage.getItem('accessToken');
-
-      if (token) {
-        console.log('Logging out from:', `${apiUrl}/api/auth/logout`);
-        const response = await fetch(`${apiUrl}/api/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        console.log('Logout response status:', response.status);
-      }
-
-      // Remove token from localStorage
-      localStorage.removeItem('accessToken');
-
+      await authService.logout();
       setCurrentUser(null);
       setCurrentView('public');
       setFilterDomain('all');
@@ -270,10 +229,212 @@ const App = () => {
     } catch (error) {
       console.error('Logout error:', error);
     }
-
     // Clear admin data
     setUsers([]);
     setSubscribers([]);
+  };
+
+  // Handle create news
+  const handleCreateNews = async (e) => {
+    e.preventDefault();
+    try {
+      const createdNews = await newsService.createNews(newNews);
+      
+      // Refresh contributor data to show the new article
+      await fetchContributorData();
+      
+      setShowAddNews(false);
+      setNewNews({ title: '', content: '', domain: '' });
+      showNotification('Article created successfully!', 'success');
+    } catch (error) {
+      console.error('Error creating news:', error);
+      showNotification('Failed to create article', 'error');
+    }
+  };
+
+  // Handle update news
+  const handleUpdateNews = async (e) => {
+    e.preventDefault();
+    try {
+      const updatedNews = await newsService.updateNews(editingNews.id, newNews);
+      
+      // Refresh contributor data to show the updated article
+      await fetchContributorData();
+      
+      setShowAddNews(false);
+      setEditingNews(null);
+      setNewNews({ title: '', content: '', domain: '' });
+      showNotification('Article updated successfully!', 'success');
+    } catch (error) {
+      console.error('Error updating news:', error);
+      showNotification('Failed to update article', 'error');
+    }
+  };
+
+  // Handle delete/archive news
+  const handleDeleteNews = async (id) => {
+    try {
+      const result = await newsService.deleteNews(id);
+      
+      // Refresh contributor data to reflect the deletion
+      await fetchContributorData();
+      
+      showNotification('Article deleted successfully!', 'success');
+    } catch (error) {
+      console.error('Error deleting news:', error);
+      showNotification('Failed to delete article', 'error');
+    }
+  };
+
+  // Handle validate news (admin only)
+  const handleValidateNews = async (id) => {
+    try {
+      const result = await newsService.validateNews(id);
+      
+      // Refresh data to reflect the validation
+      await fetchData();
+      
+      showNotification('Article validated successfully!', 'success');
+    } catch (error) {
+      console.error('Error validating news:', error);
+      showNotification('Failed to validate article', 'error');
+    }
+  };
+
+  // Handle toggle archive news (admin only)
+  const handleToggleArchiveNews = async (id) => {
+    try {
+      const result = await newsService.toggleArchiveNews(id);
+      
+      // Refresh data to reflect the archive status change
+      await fetchData();
+      
+      showNotification(result.message, 'success');
+    } catch (error) {
+      console.error('Error toggling archive status:', error);
+      showNotification('Failed to toggle archive status', 'error');
+    }
+  };
+
+  // Handle like news (public)
+  const handleLikeNews = async (id) => {
+    try {
+      const result = await newsService.likeNews(id);
+      
+      // Refresh public data to reflect the like count change
+      await fetchPublicData();
+      
+      showNotification(`Article ${result.action === 'liked' ? 'liked' : 'unliked'}!`, 'success');
+    } catch (error) {
+      console.error('Error liking news:', error);
+      showNotification('Failed to like article', 'error');
+    }
+  };
+
+  // Handle create user (admin only)
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    try {
+      const createdUser = await usersService.createUser(newUser);
+      
+      // Refresh admin data to show the new user
+      await fetchAdminData();
+      
+      setShowAddUser(false);
+      setEditingUser(null);
+      setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
+      showNotification('User created successfully!', 'success');
+    } catch (error) {
+      console.error('Error creating user:', error);
+      showNotification('Failed to create user', 'error');
+    }
+  };
+
+  // Handle update user (admin only)
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    try {
+      const updatedUser = await usersService.updateUser(editingUser.id, newUser);
+      
+      // Refresh admin data to show the updated user
+      await fetchAdminData();
+      
+      setShowAddUser(false);
+      setEditingUser(null);
+      setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
+      showNotification('User updated successfully!', 'success');
+    } catch (error) {
+      console.error('Error updating user:', error);
+      showNotification('Failed to update user', 'error');
+    }
+  };
+
+  // Handle delete user (admin only)
+  const handleDeleteUser = async (id) => {
+    try {
+      const result = await usersService.deleteUser(id);
+      
+      // Refresh admin data to reflect the deletion
+      await fetchAdminData();
+      
+      showNotification('User deleted successfully!', 'success');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showNotification('Failed to delete user', 'error');
+    }
+  };
+
+  // Handle create domain (admin only)
+  const handleCreateDomain = async (e) => {
+    e.preventDefault();
+    try {
+      const createdDomain = await domainsService.createDomain(newDomain);
+      
+      // Refresh public data to show the new domain
+      await fetchPublicData();
+      
+      setShowAddDomain(false);
+      setEditingDomain(null);
+      setNewDomain({ name: '', color: '#3b82f6' });
+      showNotification('Domain created successfully!', 'success');
+    } catch (error) {
+      console.error('Error creating domain:', error);
+      showNotification('Failed to create domain', 'error');
+    }
+  };
+
+  // Handle update domain (admin only)
+  const handleUpdateDomain = async (e) => {
+    e.preventDefault();
+    try {
+      const updatedDomain = await domainsService.updateDomain(editingDomain.id, newDomain);
+      
+      // Refresh public data to show the updated domain
+      await fetchPublicData();
+      
+      setShowAddDomain(false);
+      setEditingDomain(null);
+      setNewDomain({ name: '', color: '#3b82f6' });
+      showNotification('Domain updated successfully!', 'success');
+    } catch (error) {
+      console.error('Error updating domain:', error);
+      showNotification('Failed to update domain', 'error');
+    }
+  };
+
+  // Handle delete domain (admin only)
+  const handleDeleteDomain = async (id) => {
+    try {
+      const result = await domainsService.deleteDomain(id);
+      
+      // Refresh public data to reflect the deletion
+      await fetchPublicData();
+      
+      showNotification('Domain deleted successfully!', 'success');
+    } catch (error) {
+      console.error('Error deleting domain:', error);
+      showNotification('Failed to delete domain', 'error');
+    }
   };
 
   // Handle opening new user form
@@ -352,978 +513,67 @@ const App = () => {
     setShowAddDomain(false);
   };
 
-  // Filter news
-  const getFilteredNews = () => {
-    const filteredNews = news.filter(item =>
-      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.author.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const domainFilteredNews = filterDomain === 'all'
-      ? filteredNews
-      : filteredNews.filter(n => n.domain === filterDomain);
-
-    const contributorNews = currentUser && currentUser.role === 'contributor'
-      ? news.filter(item => 
-          item.domain === currentUser.domain || 
-          (item.author && currentUser.username && 
-           item.author.toString().trim() === currentUser.username.toString().trim()))
-        : [];
-
-    return { filteredNews, domainFilteredNews, contributorNews };
-  };
-
-  // Handle adding/editing news
-  const handleSaveNews = async (e) => {
-    e.preventDefault();
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-      if (editingNews) {
-        // Edit existing news
-        const response = await fetch(`${apiUrl}/api/news/${editingNews.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          body: JSON.stringify({
-            ...newNews,
-            author: currentUser.username,
-            domain: currentUser.role === 'contributor' ? currentUser.domain : newNews.domain
-          })
-        });
-
-        if (response.ok) {
-          setEditingNews(null);
-          setNewNews({ title: '', content: '', domain: '' });
-          setShowAddNews(false);
-          showNotification('News updated successfully', 'success');
-          fetchData();
-        } else {
-          showNotification('Failed to update news', 'error');
-        }
-      } else {
-        // Add new news
-        const response = await fetch(`${apiUrl}/api/news`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          body: JSON.stringify({
-            ...newNews,
-            author: currentUser.username,
-            domain: currentUser.role === 'contributor' ? currentUser.domain : newNews.domain
-          })
-        });
-
-        if (response.ok) {
-          setNewNews({ title: '', content: '', domain: '' });
-          setShowAddNews(false);
-          showNotification('News added successfully', 'success');
-          fetchData();
-        } else {
-          showNotification('Failed to add news', 'error');
-        }
-      }
-    } catch (error) {
-      showNotification('Error saving news', 'error');
-    }
-  };
-
-  // Handle deleting news
-  const handleDeleteNews = async (id) => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/news/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        setNews(news.filter(item => item.id !== id));
-        showNotification('News deleted successfully', 'success');
-      } else {
-        showNotification('Failed to delete news', 'error');
-      }
-    } catch (error) {
-      showNotification('Error deleting news', 'error');
-    }
-  };
-
-  // Handle adding/editing user
-  const handleSaveUser = async (e) => {
-    e.preventDefault();
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-      if (editingUser) {
-        // Edit existing user - only include password if it's provided
-        const updateData = {
-          username: newUser.username,
-          email: newUser.email,
-          role: newUser.role,
-          domain: newUser.domain
-        };
-
-        // Only include password if it's not empty
-        if (newUser.password && newUser.password.trim() !== '') {
-          updateData.password = newUser.password;
-        }
-
-        const response = await fetch(`${apiUrl}/api/users/${editingUser.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          body: JSON.stringify(updateData)
-        });
-
-        if (response.ok) {
-          setEditingUser(null);
-          setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
-          setShowAddUser(false);
-          showNotification('User updated successfully', 'success');
-          fetchData();
-        } else {
-          showNotification('Failed to update user', 'error');
-        }
-      } else {
-        // Add new user
-        const response = await fetch(`${apiUrl}/api/users`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          body: JSON.stringify(newUser)
-        });
-
-        if (response.ok) {
-          setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
-          setShowAddUser(false);
-          showNotification('User added successfully', 'success');
-          fetchData();
-        } else {
-          showNotification('Failed to add user', 'error');
-        }
-      }
-    } catch (error) {
-      showNotification('Error saving user', 'error');
-    }
-  };
-
-  // Handle adding/editing domain
-  const handleSaveDomain = async (e) => {
-    e.preventDefault();
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-      if (editingDomain) {
-        // Edit existing domain
-        const response = await fetch(`${apiUrl}/api/domains/${editingDomain.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          body: JSON.stringify(newDomain)
-        });
-
-        if (response.ok) {
-          setEditingDomain(null);
-          setNewDomain({ name: '', color: '#3b82f6' });
-          setShowAddDomain(false);
-          showNotification('Domain updated successfully', 'success');
-          fetchData();
-        } else {
-          showNotification('Failed to update domain', 'error');
-        }
-      } else {
-        // Add new domain
-        const response = await fetch(`${apiUrl}/api/domains`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          body: JSON.stringify(newDomain)
-        });
-
-        if (response.ok) {
-          setNewDomain({ name: '', color: '#3b82f6' });
-          setShowAddDomain(false);
-          showNotification('Domain added successfully', 'success');
-          fetchData();
-        } else {
-          showNotification('Failed to add domain', 'error');
-        }
-      }
-    } catch (error) {
-      showNotification('Error saving domain', 'error');
-    }
-  };
-
-  // Handle deleting user
-  const handleDeleteUser = async (id) => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/users/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        setUsers(users.filter(user => user.id !== id));
-        showNotification('User deleted successfully', 'success');
-      } else {
-        showNotification('Failed to delete user', 'error');
-      }
-    } catch (error) {
-      showNotification('Error deleting user', 'error');
-    }
-  };
-
-  // Handle adding domain
-  const handleAddDomain = async (e) => {
-    e.preventDefault();
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/domains`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(newDomain)
-      });
-
-      if (response.ok) {
-        setNewDomain({ name: '', color: '#3b82f6' });
-        setShowAddDomain(false);
-        showNotification('Domain added successfully', 'success');
-        fetchData();
-      } else {
-        showNotification('Failed to add domain', 'error');
-      }
-    } catch (error) {
-      showNotification('Error adding domain', 'error');
-    }
-  };
-
-  // Handle deleting domain
-  const handleDeleteDomain = async (id) => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/domains/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        setDomains(domains.filter(domain => domain.id !== id));
-        showNotification('Domain deleted successfully', 'success');
-        fetchData();
-      } else {
-        showNotification('Failed to delete domain', 'error');
-      }
-    } catch (error) {
-      showNotification('Error deleting domain', 'error');
-    }
-  };
-
-  // Calculate reading time
-  const calculateReadingTime = (content) => {
-    const wordsPerMinute = 200;
-    const words = content.split(' ').length;
-    const minutes = Math.ceil(words / wordsPerMinute);
-    return minutes;
-  };
-
-  // Check if article is new (within last 7 days)
-  const isNewArticle = (date) => {
-    const articleDate = new Date(date);
-    const now = new Date();
-    const diffTime = Math.abs(now - articleDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7;
-  };
-
-  // Get domain color
-  const getDomainColor = (domainName) => {
-    const domain = domains.find(d => d.name === domainName);
-    return domain?.color || domainColors[domainName] || '#3b82f6';
-  };
-
-  // Skeleton Loading Component
-  const SkeletonCard = () => (
-    <div className="card">
-      <div className="skeleton skeleton-title"></div>
-      <div className="skeleton skeleton-text"></div>
-      <div className="skeleton skeleton-text" style={{ width: '80%' }}></div>
-      <div className="skeleton skeleton-text" style={{ width: '60%' }}></div>
-    </div>
-  );
-
-  // Public View Component
-  const PublicView = () => (
-    <div className="animate-fadeIn">
-      {/* Search Bar */}
-      <div className="search-container" style={{ marginBottom: 'var(--spacing-8)' }}>
-        <Search className="search-icon" size={20} />
-        <input
-          type="text"
-          placeholder="Search articles by title, content, or author..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
-      </div>
-
-      {/* Domain Filters */}
-      <div className="filter-chips">
-        <button
-          onClick={() => setFilterDomain('all')}
-          className={`filter-chip ${filterDomain === 'all' ? 'active' : ''}`}
-        >
-          All News
-        </button>
-        {domains.map(domain => (
-          <button
-            key={domain.id}
-            onClick={() => setFilterDomain(domain.name)}
-            className={`filter-chip ${filterDomain === domain.name ? 'active' : ''}`}
-            style={filterDomain === domain.name ? {
-              backgroundColor: getDomainColor(domain.name),
-              borderColor: getDomainColor(domain.name),
-              color: 'white'
-            } : {}}
-          >
-            {domain.name}
-          </button>
-        ))}
-      </div>
-
-      {/* News Grid */}
-      {isLoading ? (
-        <div className="grid grid-cols-2">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      ) : getFilteredNews().domainFilteredNews.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">
-            <Newspaper size={40} />
-          </div>
-          <h3 className="empty-state-title">No articles found</h3>
-          <p className="empty-state-text">
-            {searchTerm ? 'Try adjusting your search terms' : 'No articles available yet'}
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Articles Counter */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 'var(--spacing-4)',
-            padding: 'var(--spacing-3) var(--spacing-4)',
-            backgroundColor: 'var(--bg-primary)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-color)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)' }}>
-              <Newspaper size={18} style={{ color: 'var(--primary-600)' }} />
-              <span style={{
-                fontSize: 'var(--font-size-sm)',
-                fontWeight: 'var(--font-weight-medium)',
-                color: 'var(--text-primary)'
-              }}>
-                {getFilteredNews().domainFilteredNews.length} article{getFilteredNews().domainFilteredNews.length > 1 ? 's' : ''}
-                {filterDomain !== 'all' && ` in ${filterDomain}`}
-                {searchTerm && ` matching "${searchTerm}"`}
-              </span>
-            </div>
-            {getFilteredNews().domainFilteredNews.length > 4 && (
-              <span style={{
-                fontSize: 'var(--font-size-xs)',
-                color: 'var(--text-tertiary)',
-                fontStyle: 'italic'
-              }}>
-                Scroll down to see more
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2">
-            {getFilteredNews().domainFilteredNews.map(item => (
-              <div key={item.id} className="card-article">
-                <div className="card-article-content">
-                  <div className="card-article-header">
-                    <span
-                      className="badge"
-                      style={{
-                        backgroundColor: getDomainColor(item.domain) + '20',
-                        color: getDomainColor(item.domain)
-                      }}
-                    >
-                      {item.domain}
-                    </span>
-                    {isNewArticle(item.date) && (
-                      <span className="badge badge-success">New</span>
-                    )}
-                  </div>
-
-                  <h3 className="card-article-title">{item.title}</h3>
-                  <p className="card-article-text">{item.content}</p>
-
-                  <div className="card-article-footer">
-                    <div className="flex items-center gap-2">
-                      <User size={14} />
-                      <span>{item.author}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} />
-                      <span>{new Date(item.date).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span>{calculateReadingTime(item.content)} min read</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-
-  // Contributor View Component
-  const ContributorView = () => (
-    <div className="animate-fadeIn">
-      <div className="section-header">
-        <h2 className="section-title">Manage Your Articles</h2>
-        <button
-          onClick={handleOpenNewNews}
-          className="btn btn-success"
-        >
-          <Plus size={20} />
-          Add Article
-        </button>
-      </div>
-
-      {/* Add News Form */}
-      {showAddNews && (
-        <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
-          <h3 style={{ marginBottom: 'var(--spacing-4)' }}>{editingNews ? 'Edit Article' : 'New Article'}</h3>
-          <form onSubmit={handleSaveNews}>
-            <div className="form-group">
-              <label className="form-label">Title</label>
-              <input
-                type="text"
-                placeholder="Enter article title"
-                value={newNews.title}
-                onChange={(e) => setNewNews({ ...newNews, title: e.target.value })}
-                className="form-input"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Content</label>
-              <textarea
-                placeholder="Write your article content..."
-                value={newNews.content}
-                onChange={(e) => setNewNews({ ...newNews, content: e.target.value })}
-                className="form-textarea"
-                required
-              />
-            </div>
-            <div className="flex gap-3">
-              <button type="submit" className="btn btn-success">
-                Publish Article
-              </button>
-              <button
-                type="button"
-                onClick={handleCancelNews}
-                className="btn btn-outline"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Articles List */}
-      {getFilteredNews().contributorNews.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">
-            <Newspaper size={40} />
-          </div>
-          <h3 className="empty-state-title">No articles yet</h3>
-          <p className="empty-state-text">Start by creating your first article</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1">
-          {getFilteredNews().contributorNews.map(item => (
-            <div key={item.id} className="card">
-              <div className="flex items-start justify-between gap-4">
-                <div style={{ flex: 1 }}>
-                  <div className="flex items-center gap-3" style={{ marginBottom: 'var(--spacing-2)' }}>
-                    <span
-                      className="badge"
-                      style={{
-                        backgroundColor: getDomainColor(item.domain) + '20',
-                        color: getDomainColor(item.domain)
-                      }}
-                    >
-                      {item.domain}
-                    </span>
-                    <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                      {new Date(item.date).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <h3 style={{ marginBottom: 'var(--spacing-2)' }}>{item.title}</h3>
-                  <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>{item.content}</p>
-                </div>
-                <div className="flex gap-2">
-                  {(currentUser.role === 'admin' || 
-                    (item.author && currentUser.username && 
-                     item.author.toString().trim() === currentUser.username.toString().trim())) && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setEditingNews(item);
-                          setNewNews({
-                            title: item.title,
-                            content: item.content,
-                            domain: item.domain
-                          });
-                          setShowAddNews(true);
-                        }}
-                        className="btn-icon"
-                        style={{ color: 'var(--primary-600)' }}
-                      >
-                        <Edit size={20} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteNews(item.id)}
-                        className="btn-icon"
-                        style={{ color: 'var(--error-600)' }}
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  // Admin View Component
-  const AdminView = () => (
-    <div className="animate-fadeIn">
-      {/* Domains Management */}
-      <div style={{ marginBottom: 'var(--spacing-12)' }}>
-        <div className="section-header">
-          <h2 className="section-title">Manage Domains</h2>
-          <button
-            onClick={handleOpenNewDomain}
-            className="btn btn-secondary"
-          >
-            <Plus size={20} />
-            Add Domain
-          </button>
-        </div>
-
-        {/* Add Domain Form */}
-        {showAddDomain && (
-          <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
-            <h3 style={{ marginBottom: 'var(--spacing-4)' }}>{editingDomain ? 'Edit Domain' : 'New Domain'}</h3>
-            <form onSubmit={handleSaveDomain}>
-              <div className="form-group">
-                <label className="form-label">Domain Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Technology, Business"
-                  value={newDomain.name}
-                  onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })}
-                  className="form-input"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Color</label>
-                <div className="flex gap-3 flex-wrap">
-                  {availableColors.map(color => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      onClick={() => setNewDomain({ ...newDomain, color: color.value })}
-                      style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: 'var(--radius-lg)',
-                        backgroundColor: color.value,
-                        border: newDomain.color === color.value ? '4px solid var(--gray-800)' : '2px solid var(--border-color)',
-                        cursor: 'pointer',
-                        transition: 'all var(--transition-fast)'
-                      }}
-                      title={color.name}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button type="submit" className="btn btn-secondary">
-                  {editingDomain ? 'Update Domain' : 'Create Domain'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancelDomain}
-                  className="btn btn-outline"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Domains Grid */}
-        <div className="grid grid-cols-3">
-          {domains.map(domain => (
-            <div key={domain.id} className="card">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: 'var(--radius-lg)',
-                      backgroundColor: getDomainColor(domain.name),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontWeight: 'var(--font-weight-bold)',
-                      fontSize: 'var(--font-size-xl)'
-                    }}
-                  >
-                    {domain.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, marginBottom: 'var(--spacing-1)' }}>{domain.name}</h3>
-                    <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
-                      {news.filter(n => n.domain === domain.name).length} articles
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEditDomain(domain)}
-                    className="btn-icon"
-                    style={{ color: 'var(--primary-600)' }}
-                  >
-                    <Edit size={20} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteDomain(domain.id)}
-                    className="btn-icon"
-                    style={{ color: 'var(--error-600)' }}
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Users Management */}
-      <div style={{ marginBottom: 'var(--spacing-12)' }}>
-        <div className="section-header">
-          <h2 className="section-title">Manage Users</h2>
-          <button
-            onClick={handleOpenNewUser}
-            className="btn btn-success"
-          >
-            <Plus size={20} />
-            Add User
-          </button>
-        </div>
-
-        {/* Add User Form */}
-        {showAddUser && (
-          <div className="card" style={{ marginBottom: 'var(--spacing-6)' }}>
-            <h3 style={{ marginBottom: 'var(--spacing-4)' }}>{editingUser ? 'Edit User' : 'New User'}</h3>
-            <form onSubmit={handleSaveUser}>
-              <div className="form-group">
-                <label className="form-label">Username</label>
-                <input
-                  type="text"
-                  placeholder="Enter username"
-                  value={newUser.username}
-                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                  className="form-input"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Email</label>
-                <input
-                  type="email"
-                  placeholder="Enter email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  className="form-input"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">
-                  Password {editingUser && <span style={{ color: 'var(--text-tertiary)', fontWeight: 'var(--font-weight-normal)', fontSize: 'var(--font-size-xs)' }}>(leave empty to keep current)</span>}
-                </label>
-                <input
-                  type="password"
-                  placeholder={editingUser ? "Leave empty to keep current password" : "Enter password"}
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  className="form-input"
-                  style={editingUser ? { backgroundColor: 'var(--bg-tertiary)', fontStyle: 'italic' } : {}}
-                  required={!editingUser}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Role</label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  className="form-select"
-                >
-                  <option value="contributor">Contributor</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              {newUser.role === 'contributor' && (
-                <div className="form-group">
-                  <label className="form-label">Domain</label>
-                  <select
-                    value={newUser.domain}
-                    onChange={(e) => setNewUser({ ...newUser, domain: e.target.value })}
-                    className="form-select"
-                    required
-                  >
-                    <option value="">Select domain</option>
-                    {domains.map(domain => (
-                      <option key={domain.id} value={domain.name}>{domain.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="flex gap-3">
-                <button type="submit" className="btn btn-success">
-                  {editingUser ? 'Update User' : 'Create User'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancelUser}
-                  className="btn btn-outline"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Users Grid */}
-        <div className="grid grid-cols-3">
-          {users.map(user => (
-            <div key={user.id} className="card">
-              <div className="flex items-center gap-3" style={{ marginBottom: 'var(--spacing-4)' }}>
-                <div className="avatar">
-                  {user.username.charAt(0).toUpperCase()}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ margin: 0, marginBottom: 'var(--spacing-1)' }}>{user.username}</h3>
-                  <p style={{ margin: 0, fontSize: 'var(--font-size-sm)', color: 'var(--text-tertiary)' }}>
-                    {user.email}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex gap-2">
-                  <span className={`badge ${user.role === 'admin' ? 'badge-secondary' : 'badge-primary'}`}>
-                    {user.role}
-                  </span>
-                  {user.domain && (
-                    <span className="badge badge-success">{user.domain}</span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEditUser(user)}
-                    className="btn-icon"
-                    style={{ color: 'var(--primary-600)' }}
-                  >
-                    <Edit size={20} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteUser(user.id)}
-                    className="btn-icon"
-                    style={{ color: 'var(--error-600)' }}
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* All News Management */}
-      <div>
-        <h2 className="section-title">All Articles</h2>
-        <div className="grid grid-cols-1">
-          {news.map(item => (
-            <div key={item.id} className="card">
-              <div className="flex items-start justify-between gap-4">
-                <div style={{ flex: 1 }}>
-                  <div className="flex items-center gap-3" style={{ marginBottom: 'var(--spacing-2)' }}>
-                    <span
-                      className="badge"
-                      style={{
-                        backgroundColor: getDomainColor(item.domain) + '20',
-                        color: getDomainColor(item.domain)
-                      }}
-                    >
-                      {item.domain}
-                    </span>
-                    <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                      {new Date(item.date).toLocaleDateString()}
-                    </span>
-                    <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                      by {item.author}
-                    </span>
-                  </div>
-                  <h3 style={{ marginBottom: 'var(--spacing-2)' }}>{item.title}</h3>
-                  <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>{item.content}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEditNews(item)}
-                    className="btn-icon"
-                    style={{ color: 'var(--primary-600)' }}
-                  >
-                    <Edit size={20} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteNews(item.id)}
-                    className="btn-icon"
-                    style={{ color: 'var(--error-600)' }}
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="app-container">
+    <div className={`app ${darkMode ? 'dark-mode' : ''}`}>
       {/* Header */}
-      <header className="header">
-        <div className="header-container">
-          <div className="header-brand">
-            <div className="header-logo" style={{ overflow: 'hidden', padding: 0 }}>
-              <img src="/alenia_logo.png" alt="Alenia Pulse" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-            <div>
-              <h1 className="header-title">Alenia Pulse</h1>
-              <p className="header-subtitle">Consulting & Connection</p>
-            </div>
+      <header className="app-header">
+        <div className="header-content">
+          <div className="app-title-container">
+            <h1 className="app-title">Newsletter App</h1>
+            <span className="app-version">v1.2.2</span>
           </div>
-
+          <nav className="navigation">
+            <button 
+              className={`nav-link ${currentView === 'public' ? 'active' : ''}`}
+              onClick={() => setCurrentView('public')}
+            >
+              <Newspaper size={20} />
+              Public
+            </button>
+            {currentUser && (
+              <button 
+                className={`nav-link ${currentView === 'contributor' ? 'active' : ''}`}
+                onClick={() => setCurrentView('contributor')}
+              >
+                <Edit size={20} />
+                My Articles
+              </button>
+            )}
+            {currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'domain_admin') && (
+              <button 
+                className={`nav-link ${currentView === 'admin' ? 'active' : ''}`}
+                onClick={() => setCurrentView('admin')}
+              >
+                <User size={20} />
+                Admin
+              </button>
+            )}
+          </nav>
           <div className="header-actions">
-            {/* Dark Mode Toggle */}
-            <button
+            <button 
               onClick={toggleDarkMode}
               className="theme-toggle"
               aria-label="Toggle dark mode"
             >
-              <div className="theme-toggle-slider">
-                {darkMode ? <Moon className="theme-toggle-icon" /> : <Sun className="theme-toggle-icon" />}
-              </div>
+              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-
-            {/* View Switcher for logged-in users */}
-            {currentUser && (
-              <div className="view-switcher">
-                <button
-                  onClick={() => setCurrentView('public')}
-                  className={`view-switcher-btn ${currentView === 'public' ? 'active' : ''}`}
-                >
-                  <Newspaper size={16} />
-                  <span>Public</span>
-                </button>
-                <button
-                  onClick={() => setCurrentView('contributor')}
-                  className={`view-switcher-btn ${currentView === 'contributor' ? 'active' : ''}`}
-                >
-                  <Mail size={16} />
-                  <span>Contributor</span>
-                </button>
-                {currentUser.role === 'admin' && (
-                  <button
-                    onClick={() => setCurrentView('admin')}
-                    className={`view-switcher-btn ${currentView === 'admin' ? 'active' : ''}`}
-                  >
-                    <User size={16} />
-                    <span>Admin</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* User Menu */}
             {currentUser ? (
-              <div className="flex items-center gap-3">
-                <div className="avatar avatar-sm">
-                  {currentUser.username.charAt(0).toUpperCase()}
-                </div>
-                <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)', display: 'none' }} className="md-inline">
-                  {currentUser.username}
-                </span>
-                <button
+              <div className="user-menu">
+                <span className="username">{currentUser.username}</span>
+                <button 
                   onClick={handleLogout}
-                  className="btn btn-ghost btn-sm"
+                  className="btn btn-secondary"
                 >
-                  <LogOut size={16} />
-                  <span>Logout</span>
+                  <LogOut size={20} />
+                  Logout
                 </button>
               </div>
             ) : (
-              <button
+              <button 
                 onClick={() => setShowLogin(true)}
                 className="btn btn-primary"
               >
-                <User size={16} />
+                <User size={20} />
                 Login
               </button>
             )}
@@ -1331,99 +581,109 @@ const App = () => {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="main-content">
-        {currentView === 'public' && <PublicView />}
-        {currentView === 'contributor' && <ContributorView />}
-        {currentView === 'admin' && <AdminView />}
-      </main>
+      {/* Notification */}
+      <Notification notification={notification} />
 
-      {/* Footer */}
-      <footer className="footer">
-        <div className="footer-container">
-          <div className="footer-section">
-            <h4>About</h4>
-            <p>Company Newsletter - Your source for internal news and updates across all departments.</p>
-          </div>
-          <div className="footer-section">
-            <h4>Quick Links</h4>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">Contact Us</a>
-          </div>
-          <div className="footer-section">
-            <h4>Connect</h4>
-            <p>Stay connected with your team and never miss an update.</p>
-          </div>
-        </div>
-        <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} Company Newsletter. All rights reserved.</p>
-        </div>
-      </footer>
-
-      {/* Login Modal */}
-      {showLogin && (
-        <div className="modal-backdrop" onClick={() => setShowLogin(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-icon">
-                <User size={32} />
-              </div>
-              <h2 className="modal-title">Welcome Back</h2>
-              <p className="modal-subtitle">Sign in to your account</p>
-            </div>
-            <div className="modal-body">
-              <form onSubmit={handleLogin}>
-                <div className="form-group">
-                  <label className="form-label">Email</label>
-                  <input
-                    type="email"
-                    value={loginForm.email}
-                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                    className="form-input"
-                    placeholder="Enter your email"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Password</label>
-                  <input
-                    type="password"
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                    className="form-input"
-                    placeholder="Enter your password"
-                    required
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowLogin(false)}
-                    className="btn btn-outline"
-                    style={{ flex: 1 }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    style={{ flex: 1 }}
-                  >
-                    Sign In
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner"></div>
         </div>
       )}
 
-      {/* Notification Toast */}
-      {notification && (
-        <div className={`notification notification-${notification.type}`}>
-          {notification.message}
-        </div>
+      {/* Main Content */}
+      <main className="main-content">
+        {currentView === 'public' && (
+          <PublicView 
+            news={news}
+            domains={domains}
+            domainColors={domainColors}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filterDomain={filterDomain}
+            setFilterDomain={setFilterDomain}
+            handleLikeNews={handleLikeNews}
+          />
+        )}
+        {currentView === 'contributor' && (
+          <ContributorView 
+            contributorNews={contributorNews}
+            domainColors={domainColors}
+            handleOpenNewNews={handleOpenNewNews}
+            handleEditNews={handleEditNews}
+            handleDeleteNews={handleDeleteNews}
+            testFetchContributorData={testFetchContributorData}
+          />
+        )}
+        {currentView === 'admin' && (
+          <AdminView 
+            users={users}
+            subscribers={subscribers}
+            domains={domains}
+            domainColors={domainColors}
+            news={adminNews}
+            archivedNews={archivedNews}
+            auditLogs={auditLogs}
+            pendingValidationNews={pendingValidationNews}
+            onSaveDomain={handleUpdateDomain}
+            onDeleteDomain={handleDeleteDomain}
+            onSaveUser={handleUpdateUser}
+            onDeleteUser={handleDeleteUser}
+            onSaveNews={handleUpdateNews}
+            onDeleteNews={handleDeleteNews}
+            onValidateNews={handleValidateNews}
+            onToggleArchive={handleToggleArchiveNews}
+            availableColors={availableColors}
+            currentUser={currentUser}
+          />
+        )}
+      </main>
+
+      {/* Modals */}
+      {showLogin && (
+        <LoginForm 
+          loginForm={loginForm}
+          setLoginForm={setLoginForm}
+          handleLogin={handleLogin}
+          setShowLogin={setShowLogin}
+        />
+      )}
+      
+      {showAddNews && (
+        <NewsModal
+          editingNews={editingNews}
+          newNews={newNews}
+          setNewNews={setNewNews}
+          domains={domains}
+          currentUser={currentUser}
+          handleCreateNews={handleCreateNews}
+          handleUpdateNews={handleUpdateNews}
+          handleCancelNews={handleCancelNews}
+        />
+      )}
+      
+      {showAddUser && (
+        <UserModal
+          editingUser={editingUser}
+          newUser={newUser}
+          setNewUser={setNewUser}
+          domains={domains}
+          handleCreateUser={handleCreateUser}
+          handleUpdateUser={handleUpdateUser}
+          handleCancelUser={handleCancelUser}
+        />
+      )}
+      
+      {showAddDomain && (
+        <DomainModal
+          editingDomain={editingDomain}
+          newDomain={newDomain}
+          setNewDomain={setNewDomain}
+          availableColors={availableColors}
+          handleCreateDomain={handleCreateDomain}
+          handleUpdateDomain={handleUpdateDomain}
+          handleCancelDomain={handleCancelDomain}
+        />
       )}
     </div>
   );

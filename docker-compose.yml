@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # PostgreSQL Database
   db:
@@ -34,6 +36,8 @@ services:
       DB_PASSWORD: postgres
       DB_PORT: 5432
       PORT: 3002
+      NODE_ENV: production
+
       # JWT Configuration
       JWT_SECRET: dev_jwt_secret_key_here_change_me_for_security
       JWT_REFRESH_SECRET: dev_jwt_refresh_secret_here_change_me_for_security
@@ -65,7 +69,6 @@ services:
 
 volumes:
   postgres_data:
-
 
 networks:
   newsletter_network:

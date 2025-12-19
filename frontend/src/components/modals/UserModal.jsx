@@ -1,124 +1,143 @@
-import React, { useEffect, useMemo } from 'react';
-import { X, User, Mail } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { X, User, Mail, Shield, Lock, Briefcase } from 'lucide-react';
 
 const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, domains, isProfile }) => {
     if (!show) return null;
 
     // Calculate selected domain ID safely
     const selectedDomainId = useMemo(() => {
-        // Handle case where domains or userData might be undefined
         if (!domains || !Array.isArray(domains) || !userData || userData.domain === undefined || userData.domain === null) {
             return '';
         }
-        
-        // Check if userData.domain is already an ID (number) or a name (string)
-        if (typeof userData.domain === 'number' || 
+
+        if (typeof userData.domain === 'number' ||
             (typeof userData.domain === 'string' && !isNaN(parseInt(userData.domain)))) {
-            // It's an ID
             return String(parseInt(userData.domain));
         } else {
-            // It's a name, find the corresponding ID
             const domainObj = domains.find(d => d.name === userData.domain);
             return domainObj ? String(domainObj.id) : '';
         }
     }, [userData?.domain, domains]);
 
-    // Ensure role has a valid default value
     const normalizedRole = userData?.role || 'user';
 
-    // When setting the domain in userData, we should store the domain ID for consistency
     const handleDomainChange = (e) => {
         const domainId = parseInt(e.target.value) || '';
         setUserData({ ...userData, domain: domainId });
     };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content animate-scaleIn" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay glass-dark" onClick={onClose}>
+            <div className="modal-content glass animate-scaleIn" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
                 <div className="modal-header">
-                    <h3 className="modal-title">{isProfile ? 'My Profile' : (isEditing ? 'Edit User' : 'Add User')}</h3>
-                    <button onClick={onClose} className="btn-icon">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary-500 text-white flex items-center justify-center shadow-lg">
+                            {isProfile ? <User size={20} /> : <Shield size={20} />}
+                        </div>
+                        <div>
+                            <h3 className="modal-title text-xl font-bold">{isProfile ? 'My Profile' : (isEditing ? 'Edit User' : 'Add New User')}</h3>
+                            <p className="text-tertiary text-xs">Manage account information and permissions</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="btn-icon text-tertiary hover:text-primary-500 transition-colors">
                         <X size={20} />
                     </button>
                 </div>
-                <form onSubmit={onSave} className="modal-body">
-                    <div className="form-group">
-                        <label className="form-label">Username</label>
-                        <div className="input-with-icon">
-                            <User className="input-icon" size={18} />
-                            <input
-                                type="text"
-                                value={userData?.username || ''}
-                                onChange={e => setUserData({ ...userData, username: e.target.value })}
-                                className="form-input pl-10"
-                                required
-                            />
+
+                <form onSubmit={onSave} className="modal-body space-y-4 pt-6">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="form-group col-span-2">
+                            <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Username</label>
+                            <div className="input-with-icon">
+                                <User className="input-icon" size={18} />
+                                <input
+                                    type="text"
+                                    value={userData?.username || ''}
+                                    onChange={e => setUserData({ ...userData, username: e.target.value })}
+                                    className="form-input glass pl-10 h-11"
+                                    required
+                                    placeholder="johndoe"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-group col-span-2">
+                            <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Email Address</label>
+                            <div className="input-with-icon">
+                                <Mail className="input-icon" size={18} />
+                                <input
+                                    type="email"
+                                    value={userData?.email || ''}
+                                    onChange={e => setUserData({ ...userData, email: e.target.value })}
+                                    className="form-input glass pl-10 h-11"
+                                    required
+                                    placeholder="john@example.com"
+                                />
+                            </div>
+                        </div>
+
+                        {!isProfile && (
+                            <div className="form-group">
+                                <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Role</label>
+                                <div className="input-with-icon">
+                                    <Shield className="input-icon" size={18} />
+                                    <select
+                                        value={normalizedRole}
+                                        onChange={e => setUserData({ ...userData, role: e.target.value })}
+                                        className="form-select glass pl-10 h-11"
+                                    >
+                                        <option value="user">User</option>
+                                        <option value="contributor">Contributor</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {!isProfile && normalizedRole === 'contributor' && (
+                            <div className="form-group animate-fadeIn">
+                                <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Assign Domain</label>
+                                <div className="input-with-icon">
+                                    <Briefcase className="input-icon" size={18} />
+                                    <select
+                                        value={selectedDomainId}
+                                        onChange={handleDomainChange}
+                                        className="form-select glass pl-10 h-11"
+                                        required
+                                    >
+                                        <option value="">Select Domain</option>
+                                        {domains && Array.isArray(domains) ? domains.map(domain => (
+                                            <option key={domain.id} value={String(domain.id)}>{domain.name}</option>
+                                        )) : null}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="form-group col-span-2">
+                            <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">
+                                {isEditing ? 'Update Password' : 'Password'}
+                            </label>
+                            <div className="input-with-icon">
+                                <Lock className="input-icon" size={18} />
+                                <input
+                                    type="password"
+                                    value={userData?.password || ''}
+                                    onChange={e => setUserData({ ...userData, password: e.target.value })}
+                                    className="form-input glass pl-10 h-11"
+                                    required={!isEditing}
+                                    placeholder={isEditing ? "Leave blank to keep current" : "••••••••"}
+                                />
+                            </div>
                         </div>
                     </div>
-                    <div className="form-group">
-                        <label className="form-label">Email</label>
-                        <div className="input-with-icon">
-                            <Mail className="input-icon" size={18} />
-                            <input
-                                type="email"
-                                value={userData?.email || ''}
-                                onChange={e => setUserData({ ...userData, email: e.target.value })}
-                                className="form-input pl-10"
-                                required
-                            />
-                        </div>
-                    </div>
 
-                    {!isProfile && (
-                        <div className="form-group">
-                            <label className="form-label">Role</label>
-                            <select
-                                value={normalizedRole}
-                                onChange={e => setUserData({ ...userData, role: e.target.value })}
-                                className="form-select"
-                            >
-                                <option value="user">User</option>
-                                <option value="contributor">Contributor</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                        </div>
-                    )}
-
-                    {!isProfile && normalizedRole === 'contributor' && (
-                        <div className="form-group animate-fadeIn">
-                            <label className="form-label">Domain</label>
-                            <select
-                                value={selectedDomainId}
-                                onChange={handleDomainChange}
-                                className="form-select"
-                                required
-                            >
-                                <option value="">Select Domain</option>
-                                {domains && Array.isArray(domains) ? domains.map(domain => (
-                                    <option key={domain.id} value={String(domain.id)}>{domain.name}</option>
-                                )) : null}
-                            </select>
-                        </div>
-                    )}
-
-                    <div className="form-group">
-                        <label className="form-label">{isEditing ? 'New Password' : 'Password'}</label>
-                        <input
-                            type="password"
-                            value={userData?.password || ''}
-                            onChange={e => setUserData({ ...userData, password: e.target.value })}
-                            className="form-input"
-                            required={!isEditing}
-                            placeholder={isEditing ? "Leave blank to keep current" : "Enter password"}
-                        />
-                    </div>
-
-                    <div className="modal-footer">
-                        <button type="button" onClick={onClose} className="btn btn-ghost">
+                    <div className="modal-footer border-none pt-4">
+                        <button type="button" onClick={onClose} className="btn btn-ghost glass h-11 px-6">
                             Cancel
                         </button>
-                        <button type="submit" className="btn btn-primary">
-                            {isEditing ? 'Update User' : 'Add User'}
+                        <button type="submit" className="btn btn-primary h-11 px-8 shadow-primary font-bold">
+                            {isProfile ? 'Save Changes' : (isEditing ? 'Update Member' : 'Create Member')}
                         </button>
                     </div>
                 </form>

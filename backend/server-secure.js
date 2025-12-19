@@ -10,6 +10,7 @@ import {
     authenticateToken,
     requireAdmin,
     requireContributor,
+    requireDomainAdmin,
     checkDomainAccess,
     generateAccessToken,
     generateRefreshToken,
@@ -23,6 +24,9 @@ import {
     validateDomainCreation,
     validateSubscriber
 } from './middleware/validators.js';
+
+// Import the auto-archive job
+import { startAutoArchiveJob } from './jobs/auto-archive.js';
 
 dotenv.config();
 
@@ -453,28 +457,28 @@ app.get('/api/news', async (req, res) => {
 
 // Search news (public)
 app.get('/api/news/search', async (req, res) => {
-    try {
-        const { q } = req.query;
-        console.log(`[DEBUG] Search query: ${q}`);
-        
-        // Validate query parameter
-        if (!q || typeof q !== 'string' || q.trim() === '') {
-            return res.status(400).json({ error: 'Search query is required' });
-        }
-        
-        const result = await pool.query(
-            `SELECT n.*, d.name as domain_name 
-             FROM news n 
-             JOIN domains d ON n.domain = d.id 
-             WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 
-             ORDER BY date DESC`,
-            [`%${q.trim()}%`]
-        );
-        res.json(result.rows);
-    } catch (err) {
-        console.error('[ERROR] Search news:', err);
-        res.status(500).json({ error: 'Server error' });
+  try {
+    const { q } = req.query;
+    console.log(`[DEBUG] Search query: ${q}`);
+    
+    // Validate query parameter
+    if (!q || typeof q !== 'string' || q.trim() === '') {
+      return res.status(400).json({ error: 'Search query is required' });
     }
+    
+    const result = await pool.query(
+      `SELECT n.*, d.name as domain_name 
+       FROM news n 
+       JOIN domains d ON n.domain = d.id 
+       WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 
+       ORDER BY date DESC`,
+      [`%${q.trim()}%`]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[ERROR] Search news:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // Add news (contributor or admin)
@@ -546,7 +550,8 @@ app.put('/api/news/:id', authenticateToken, requireContributor, checkDomainAcces
             // 1. Admin can edit any article
             // 2. Author can edit their own article (check by user ID)
             // 3. Editors can edit articles they have been granted access to
-            const isAuthorized = req.user.role === 'admin' ||
+            const isAuthorized = req.user.role === 'super_admin' ||
+              req.user.role === 'domain_admin' ||
               newsItem.author_id === req.user.userId ||
               (Array.isArray(newsItem.editors) && newsItem.editors.includes(req.user.email));
 
@@ -634,7 +639,7 @@ app.post('/api/news/:id/grant-edit', authenticateToken, requireContributor, asyn
     
     // Check if current user is authorized to grant access (author or admin)
     // Use author_id for permission checking instead of username comparison
-    if (req.user.role !== 'admin' && article.author_id !== req.user.userId) {
+    if ((req.user.role !== 'super_admin' && req.user.role !== 'domain_admin') && article.author_id !== req.user.userId) {
       return res.status(403).json({ error: 'Only the author or admin can grant edit access' });
     }
     
@@ -684,7 +689,7 @@ app.delete('/api/news/:id', authenticateToken, requireContributor, async (req, r
             // 1. Admin can delete any article
             // 2. Author can delete their own article (check by user ID)
             // 3. Editors can delete articles they have been granted access to
-            const isAuthorized = req.user.role === 'admin' ||
+            const isAuthorized = (req.user.role === 'super_admin' || req.user.role === 'domain_admin') ||
               newsItem.author_id === req.user.userId ||
               (Array.isArray(newsItem.editors) && newsItem.editors.includes(req.user.email));
 
@@ -703,34 +708,63 @@ app.delete('/api/news/:id', authenticateToken, requireContributor, async (req, r
 });
 
 // Get news by ID (public)
-app.get('/api/news/:id', async (req, res) => {
-    try {
-        const id = parseInt(req.params.id);
-        
-        // Validate ID
-        if (isNaN(id)) {
-            return res.status(400).json({ error: 'Invalid news ID' });
-        }
-
-        const result = await pool.query(
-            `SELECT n.*, d.name as domain_name 
-             FROM news n 
-             JOIN domains d ON n.domain = d.id 
-             WHERE n.id = $1`,
-            [id]
-        );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'News article not found' });
-        }
-        
-        // Return the data with both domain ID and domain name
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error('[ERROR] getNewsById:', err);
-        res.status(500).json({ error: 'Server error' });
-    }
-});
+// app.get('/api/news/:id', async (req, res) => {
+//   console.log('[DEBUG] getNewsById function called');
+//   console.log('[DEBUG] getNewsById called with id:', req.params.id);
+//   try {
+//     const id = parseInt(req.params.id);
+//     
+//     // Validate ID
+//     if (isNaN(id)) {
+//       console.log('[DEBUG] Invalid news ID provided:', req.params.id);
+//       return res.status(400).json({ error: 'Invalid news ID' });
+//     }
+//
+//     console.log('[DEBUG] Querying database for news id:', id);
+//     const result = await pool.query(
+//       `SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name, n.likes_count
+//        FROM news n 
+//        LEFT JOIN domains d ON n.domain = d.id 
+//        LEFT JOIN users u ON n.author_id = u.id
+//        WHERE n.id = $1`,
+//       [id]
+//     );
+//     
+//     console.log('[DEBUG] Database query result:', result.rows);
+//     
+//     if (result.rows.length === 0) {
+//       console.log('[DEBUG] News article not found for id:', id);
+//       return res.status(404).json({ error: 'News article not found' });
+//     }
+//     
+//     // Transform the data to match the old format (domain as name instead of ID)
+//     const transformedRow = {
+//       id: result.rows[0].id,
+//       title: result.rows[0].title,
+//       domain: result.rows[0].domain_name || result.rows[0].domain, // Use domain_name if available, otherwise fallback to domain
+//       content: result.rows[0].content,
+//       author: result.rows[0].author_name || 'Unknown', // Use author_name from joined users table
+//       author_id: result.rows[0].author_id, // Explicitly include author_id
+//       date: result.rows[0].date,
+//       editors: result.rows[0].editors,
+//       likes_count: result.rows[0].likes_count,
+//       archived: result.rows[0].archived
+//     };
+//     
+//     // Decode HTML entities in content and title
+//     const decodedRow = {
+//       ...transformedRow,
+//       content: transformedRow.content ? transformedRow.content.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : transformedRow.content,
+//       title: transformedRow.title ? transformedRow.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : transformedRow.title
+//     };
+//     
+//     console.log('[DEBUG] Returning news item:', decodedRow);
+//     res.json(decodedRow);
+//   } catch (err) {
+//     console.error('[ERROR] getNewsById:', err);
+//     res.status(500).json({ error: 'Server error' });
+//   }
+// });
 
 // Search news (public)
 app.get('/api/news/search', async (req, res) => {
@@ -759,6 +793,274 @@ app.get('/api/news/search', async (req, res) => {
 });
 
 // ============================================
+// NEW ADMIN/CONTRIBUTOR NEWS ROUTES
+// ============================================
+
+// Get all news for admin users (domain admin and super admin)
+app.get('/api/news/admin', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    console.log('[DEBUG] getAllNewsForAdmin called with user:', req.user);
+    
+    let query = `
+      SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name, n.likes_count
+      FROM news n 
+      LEFT JOIN domains d ON n.domain = d.id 
+      LEFT JOIN users u ON n.author_id = u.id
+    `;
+    
+    const queryParams = [];
+    
+    // If user is a domain admin, filter by their domain
+    if (req.user.role === 'domain_admin') {
+      // Check if the user has a domain_id
+      const userCheckQuery = 'SELECT domain_id FROM users WHERE id = $1';
+      const userResult = await pool.query(userCheckQuery, [req.user.userId]);
+      
+      if (userResult.rows.length > 0 && userResult.rows[0].domain_id) {
+        query += ` WHERE n.domain = $${queryParams.length + 1}`;
+        queryParams.push(userResult.rows[0].domain_id);
+        console.log('[DEBUG] Domain admin filter applied for domain ID:', userResult.rows[0].domain_id);
+      } else {
+        // If domain admin has no domain assigned, return empty result
+        query += ` WHERE FALSE`;
+        console.log('[DEBUG] Domain admin has no domain assigned, returning empty result');
+      }
+    }
+    
+    query += ` ORDER BY n.date DESC`;
+    
+    console.log('[DEBUG] Executing query:', query, 'with params:', queryParams);
+    const result = await pool.query(query, queryParams);
+    console.log('[DEBUG] Query returned', result.rows.length, 'rows');
+    
+    // Transform the data to match the old format (domain as name instead of ID)
+    const transformedRows = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      domain: row.domain_name || row.domain, // Use domain_name if available, otherwise fallback to domain
+      content: row.content,
+      author: row.author_name || 'Unknown', // Use author_name from joined users table
+      author_id: row.author_id, // Explicitly include author_id
+      date: row.date,
+      editors: row.editors,
+      likes_count: row.likes_count,
+      archived: row.archived,
+      pending_validation: row.pending_validation
+    }));
+    
+    // Decode HTML entities in content and title
+    // Assuming decodeNewsContent function exists or implementing inline
+    const decodedRows = transformedRows.map(item => ({
+      ...item,
+      content: item.content ? item.content.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : item.content,
+      title: item.title ? item.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : item.title
+    }));
+    
+    console.log('[DEBUG] Returning', decodedRows.length, 'news items to admin user');
+    res.json(decodedRows);
+  } catch (err) {
+    console.error('[ERROR] getAllNewsForAdmin:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get articles for a contributor (all articles by that contributor)
+app.get('/api/news/contributor', authenticateToken, requireContributor, async (req, res) => {
+  try {
+    console.log('[DEBUG] getContributorNews called with user:', req.user);
+    
+    const result = await pool.query(
+      `SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name, n.likes_count
+       FROM news n 
+       LEFT JOIN domains d ON n.domain = d.id 
+       LEFT JOIN users u ON n.author_id = u.id
+       WHERE n.author_id = $1
+       ORDER BY n.date DESC`,
+      [req.user.userId]
+    );
+    
+    console.log('[DEBUG] Query returned', result.rows.length, 'rows');
+    
+    // Transform the data to match the old format (domain as name instead of ID)
+    const transformedRows = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      domain: row.domain_name || row.domain, // Use domain_name if available, otherwise fallback to domain
+      content: row.content,
+      author: row.author_name || 'Unknown', // Use author_name from joined users table
+      author_id: row.author_id, // Explicitly include author_id
+      date: row.date,
+      editors: row.editors,
+      likes_count: row.likes_count,
+      archived: row.archived,
+      pending_validation: row.pending_validation
+    }));
+    
+    // Decode HTML entities in content and title
+    const decodedRows = transformedRows.map(item => ({
+      ...item,
+      content: item.content ? item.content.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : item.content,
+      title: item.title ? item.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : item.title
+    }));
+    
+    console.log('[DEBUG] Returning', decodedRows.length, 'news items to contributor');
+    res.json(decodedRows);
+  } catch (err) {
+    console.error('[ERROR] getContributorNews:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get archived articles (admin only)
+app.get('/api/news/archived', authenticateToken, requireDomainAdmin, async (req, res) => {
+  console.log('[DEBUG] getArchivedNews function called');
+  try {
+    console.log('[DEBUG] getArchivedNews called with user:', req.user);
+    
+    // Super admins can view all archived articles
+    // Domain admins can view archived articles in their domain
+    if (req.user.role !== 'super_admin' && req.user.role !== 'domain_admin') {
+      return res.status(403).json({ error: 'Only administrators can view archived articles' });
+    }
+    
+    let query = `
+      SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name, n.likes_count
+      FROM news n 
+      LEFT JOIN domains d ON n.domain = d.id 
+      LEFT JOIN users u ON n.author_id = u.id
+      WHERE n.archived = true
+    `;
+    
+    const queryParams = [];
+    
+    // If user is a domain admin, filter by their domain
+    if (req.user.role === 'domain_admin') {
+      // Check if the user has a domain_id
+      const userCheckQuery = 'SELECT domain_id FROM users WHERE id = $1';
+      console.log('[DEBUG] Checking user domain with query:', userCheckQuery, 'and userId:', req.user.userId);
+      const userResult = await pool.query(userCheckQuery, [req.user.userId]);
+      console.log('[DEBUG] User check result:', userResult.rows);
+      
+      if (userResult.rows.length > 0 && userResult.rows[0].domain_id) {
+        query += ` AND n.domain = $${queryParams.length + 1}`;
+        queryParams.push(userResult.rows[0].domain_id);
+        console.log('[DEBUG] Domain admin filter applied for domain ID:', userResult.rows[0].domain_id);
+      } else {
+        // If domain admin has no domain assigned, return empty result
+        query += ` AND FALSE`;
+        console.log('[DEBUG] Domain admin has no domain assigned, returning empty result');
+      }
+    }
+    
+    query += ` ORDER BY n.date DESC`;
+    
+    console.log('[DEBUG] Final query:', query);
+    console.log('[DEBUG] Final params:', queryParams);
+    const result = await pool.query(query, queryParams);
+    console.log('[DEBUG] Query returned', result.rows.length, 'rows');
+    
+    // Transform the data to match the old format (domain as name instead of ID)
+    const transformedRows = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      domain: row.domain_name || row.domain, // Use domain_name if available, otherwise fallback to domain
+      content: row.content,
+      author: row.author_name || 'Unknown', // Use author_name from joined users table
+      author_id: row.author_id, // Explicitly include author_id
+      date: row.date,
+      editors: row.editors,
+      likes_count: row.likes_count,
+      archived: row.archived
+    }));
+    
+    // Decode HTML entities in content and title
+    const decodedRows = transformedRows.map(item => ({
+      ...item,
+      content: item.content ? item.content.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : item.content,
+      title: item.title ? item.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : item.title
+    }));
+    
+    console.log('[DEBUG] Returning', decodedRows.length, 'archived news items');
+    res.json(decodedRows);
+  } catch (err) {
+    console.error('[ERROR] getArchivedNews:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get articles pending validation (admin only)
+app.get('/api/news/pending-validation', authenticateToken, requireDomainAdmin, async (req, res) => {
+  console.log('[DEBUG] getPendingValidationNews function called');
+  try {
+    console.log('[DEBUG] getPendingValidationNews called with user:', req.user);
+    
+    let query = `
+      SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name, n.likes_count
+      FROM news n 
+      LEFT JOIN domains d ON n.domain = d.id 
+      LEFT JOIN users u ON n.author_id = u.id
+      WHERE n.pending_validation = true AND n.archived = false
+    `;
+
+    const queryParams = [];
+
+    // If user is not a super admin, filter by domain
+    if (req.user.role !== 'super_admin') {
+      // Check if the user has a domain_id
+      const userCheckQuery = 'SELECT domain_id FROM users WHERE id = $1';
+      console.log('[DEBUG] Checking user domain with query:', userCheckQuery, 'and userId:', req.user.userId);
+      const userResult = await pool.query(userCheckQuery, [req.user.userId]);
+      console.log('[DEBUG] User check result:', userResult.rows);
+      
+      if (userResult.rows.length > 0 && userResult.rows[0].domain_id) {
+        query += ` AND n.domain = $${queryParams.length + 1}`;
+        queryParams.push(userResult.rows[0].domain_id);
+        console.log('[DEBUG] Domain filter applied for domain ID:', userResult.rows[0].domain_id);
+      } else {
+        // If user has no domain assigned, return empty result
+        query += ` AND FALSE`;
+        console.log('[DEBUG] User has no domain assigned, returning empty result');
+      }
+    }
+
+    query += ` ORDER BY n.date DESC`;
+
+    console.log('[DEBUG] Final query:', query);
+    console.log('[DEBUG] Final params:', queryParams);
+    const result = await pool.query(query, queryParams);
+    console.log('[DEBUG] Query returned', result.rows.length, 'rows');
+
+    // Transform the data to match the old format (domain as name instead of ID)
+    const transformedRows = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      domain: row.domain_name || row.domain, // Use domain_name if available, otherwise fallback to domain
+      content: row.content,
+      author: row.author_name || 'Unknown', // Use author_name from joined users table
+      author_id: row.author_id, // Explicitly include author_id
+      date: row.date,
+      editors: row.editors,
+      likes_count: row.likes_count,
+      archived: row.archived,
+      pending_validation: row.pending_validation
+    }));
+
+    // Decode HTML entities in content and title
+    const decodedRows = transformedRows.map(item => ({
+      ...item,
+      content: item.content ? item.content.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : item.content,
+      title: item.title ? item.title.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : item.title
+    }));
+
+    console.log('[DEBUG] Returning', decodedRows.length, 'pending validation news items');
+    res.json(decodedRows);
+  } catch (err) {
+    console.error('[ERROR] getPendingValidationNews:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================
 // USER ROUTES
 // ============================================
 
@@ -766,9 +1068,9 @@ app.get('/api/news/search', async (req, res) => {
 app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+            `SELECT u.id, u.username, u.email, u.role, u.domain_id, d.name as domain_name, u.created_at 
              FROM users u 
-             LEFT JOIN domains d ON u.domain = d.id 
+             LEFT JOIN domains d ON u.domain_id = d.id 
              ORDER BY u.id`
         );
         res.json(result.rows);
@@ -829,15 +1131,15 @@ app.post('/api/users', authenticateToken, requireAdmin, validateUserCreation, as
         const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS) || 10);
 
         const result = await pool.query(
-            'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            'INSERT INTO users (username, email, password, role, domain_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
             [username, email, hashedPassword, role, domain]
         );
 
         // Fetch the created user with domain name for consistent response
         const userResult = await pool.query(
-            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+            `SELECT u.id, u.username, u.email, u.role, u.domain_id, d.name as domain_name, u.created_at 
              FROM users u 
-             LEFT JOIN domains d ON u.domain = d.id 
+             LEFT JOIN domains d ON u.domain_id = d.id 
              WHERE u.id = $1`,
             [result.rows[0].id]
         );
@@ -917,7 +1219,7 @@ app.put('/api/users/:id', authenticateToken, validateUserUpdate, async (req, res
 
         // Only admin can update role and domain
         if (req.user.role === 'admin') {
-            query += `, role = $${paramIndex++}, domain = $${paramIndex++}`;
+            query += `, role = $${paramIndex++}, domain_id = $${paramIndex++}`
             params.push(role, domain);
         }
 
@@ -938,9 +1240,9 @@ app.put('/api/users/:id', authenticateToken, validateUserUpdate, async (req, res
 
         // Fetch the updated user with domain name for consistent response
         const userResult = await pool.query(
-            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+            `SELECT u.id, u.username, u.email, u.role, u.domain_id, d.name as domain_name, u.created_at 
              FROM users u 
-             LEFT JOIN domains d ON u.domain = d.id 
+             LEFT JOIN domains d ON u.domain_id = d.id 
              WHERE u.id = $1`,
             [id]
         );
@@ -1032,24 +1334,39 @@ app.post('/api/seed', async (req, res) => {
     }
 });
 
-// Health check
+// Health check route
 app.get('/api/health', (req, res) => {
     res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development'
-    });
-});
-
-// Root route for health check and identification
-app.get('/', (req, res) => {
-    res.json({
-        message: 'Alenia Pulse API Server',
-        version: '1.2.0',
-        status: 'running',
+        status: 'OK',
         timestamp: new Date().toISOString(),
         documentation: '/api/health for health check'
     });
+});
+
+// Test route to manually trigger auto-archive (for testing purposes only)
+app.get('/api/test-archive', async (req, res) => {
+  try {
+    console.log('🔄 Manual archive test triggered');
+    
+    // Archive articles older than 30 days that are not already archived
+    const result = await pool.query(
+      `UPDATE news 
+       SET archived = true 
+       WHERE date < CURRENT_DATE - INTERVAL '30 days' 
+       AND archived = false 
+       RETURNING id, title`
+    );
+    
+    res.json({ 
+      message: `Manual archive completed. Archived ${result.rowCount} articles.`,
+      archivedArticles: result.rows
+    });
+    
+    console.log(`✅ Manual archive completed. Archived ${result.rowCount} articles.`);
+  } catch (error) {
+    console.error('❌ Manual archive failed:', error);
+    res.status(500).json({ error: 'Manual archive failed', details: error.message });
+  }
 });
 
 // Favicon route to prevent 404 errors in browser console
@@ -1091,6 +1408,9 @@ const findAvailablePort = (startPort) => {
 // Initialize tables and start server
 createTables().then(() => {
     seedDatabase().then(() => {
+        // Start the auto-archive job
+        startAutoArchiveJob();
+        
         findAvailablePort(parseInt(port)).catch(err => {
             console.error('Failed to start server:', err);
         });

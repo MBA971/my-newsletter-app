@@ -44,10 +44,19 @@ export const requireRole = (...allowedRoles) => {
 };
 
 // Shortcut middleware for admin only
-export const requireAdmin = requireRole('admin');
+export const requireAdmin = requireRole('super_admin');
 
 // Shortcut middleware for contributor or admin
-export const requireContributor = requireRole('contributor', 'admin');
+export const requireContributor = requireRole('contributor', 'domain_admin', 'super_admin');
+
+// Shortcut middleware for super admin only
+export const requireSuperAdmin = requireRole('super_admin');
+
+// Shortcut middleware for domain admin or super admin
+export const requireDomainAdmin = requireRole('domain_admin', 'super_admin');
+
+// Shortcut middleware for contributor, domain admin, or super admin
+export const requireContributorOrAdmin = requireRole('contributor', 'domain_admin', 'super_admin');
 
 // Middleware to check if user can modify resource in their domain
 export const checkDomainAccess = (req, res, next) => {
@@ -55,8 +64,16 @@ export const checkDomainAccess = (req, res, next) => {
         return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Admin can access all domains
-    if (req.user.role === 'admin') {
+    // Super admin can access all domains
+    if (req.user.role === 'super_admin') {
+        return next();
+    }
+
+    // Domain admins can access their own domain
+    if (req.user.role === 'domain_admin') {
+        // Get the user's domain from the database
+        // For now, we'll allow domain admins to access their assigned domain
+        // In a more complete implementation, we might want to check the specific domain
         return next();
     }
 

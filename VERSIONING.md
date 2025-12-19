@@ -12,7 +12,7 @@ Given a version number MAJOR.MINOR.PATCH, increment the:
 
 ## Current Version
 
-Current version: 1.2.1
+Current version: 1.2.2
 
 ## Release Process
 
