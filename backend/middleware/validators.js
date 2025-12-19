@@ -3,12 +3,15 @@ import { body, validationResult } from 'express-validator';
 // Middleware to handle validation errors
 export const handleValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
+    console.log('[DEBUG] Validation errors:', errors.array());
     if (!errors.isEmpty()) {
+        console.log('[DEBUG] Validation failed, returning 400');
         return res.status(400).json({
             error: 'Validation failed',
             details: errors.array()
         });
     }
+    console.log('[DEBUG] Validation passed');
     next();
 };
 

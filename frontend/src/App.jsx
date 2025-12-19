@@ -85,6 +85,7 @@ const App = () => {
         domainsApi.getAll(),
         newsApi.getAll()
       ]);
+      console.log('[DEBUG] Domains data received:', domainsData);
       setDomains(domainsData);
       setNews(newsData);
     } catch (error) {
@@ -96,10 +97,14 @@ const App = () => {
   const fetchAdminData = useCallback(async () => {
     if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'domain_admin')) return;
     try {
+      console.log('[DEBUG] Fetching admin data for user:', currentUser);
       const [usersData, adminNewsData] = await Promise.all([
         currentUser.role === 'super_admin' ? usersApi.getAll() : usersApi.getByDomain(),
         newsApi.getAllAdmin()
       ]);
+
+      console.log('[DEBUG] Users data received:', usersData);
+      console.log('[DEBUG] Admin news data received:', adminNewsData);
 
       setUsers(usersData);
       setNews(adminNewsData);
@@ -111,7 +116,7 @@ const App = () => {
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      showNotification('Failed to load admin data', 'error');
+      showNotification('Failed to load admin data: ' + error.message, 'error');
     }
   }, [currentUser, showNotification]);
 
@@ -121,8 +126,6 @@ const App = () => {
       await fetchPublicData();
       if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'domain_admin')) {
         await fetchAdminData();
-        // Debug: Log the users data to see domain information
-        console.log('[DEBUG] Users data in App.jsx:', users);
       }
     } finally {
       setTimeout(() => setIsLoading(false), 300);
@@ -155,6 +158,11 @@ const App = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Debug: Log users state changes
+  useEffect(() => {
+    console.log('[DEBUG] Users state updated:', users);
+  }, [users]);
 
   // Auth Handlers
   const handleLogin = async (e) => {
@@ -212,8 +220,10 @@ const App = () => {
   // User Handlers
   const handleSaveUser = async (userData, isEditing) => {
     try {
+      console.log('[DEBUG] Saving user data:', userData);
       if (isEditing) {
-        await usersApi.update(userData.id, userData);
+        const response = await usersApi.update(userData.id, userData);
+        console.log('[DEBUG] User update response:', response);
         showNotification('User updated', 'success');
       } else {
         await usersApi.create(userData);
@@ -222,7 +232,14 @@ const App = () => {
       fetchData();
       return true;
     } catch (error) {
-      showNotification(error.message || 'Error saving user', 'error');
+      console.error('[DEBUG] Error saving user:', error);
+      // Try to get more detailed error information
+      if (error.response) {
+        console.error('[DEBUG] Error response:', error.response);
+        showNotification(`Error saving user: ${error.response.statusText || error.message}`, 'error');
+      } else {
+        showNotification(error.message || 'Error saving user', 'error');
+      }
       return false;
     }
   };

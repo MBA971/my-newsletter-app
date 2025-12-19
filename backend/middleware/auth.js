@@ -5,21 +5,32 @@ const { secret: JWT_SECRET, refreshSecret: JWT_REFRESH_SECRET, accessExpiration,
 
 // Middleware to authenticate JWT token
 export const authenticateToken = (req, res, next) => {
+    console.log('[DEBUG] authenticateToken called');
+    console.log('[DEBUG] Request headers:', req.headers);
+    console.log('[DEBUG] Request cookies:', req.cookies);
+    
     // Try to get token from cookie first, then from Authorization header
     const token = req.cookies?.accessToken || req.headers['authorization']?.split(' ')[1];
+    
+    console.log('[DEBUG] Token:', token);
 
     if (!token) {
+        console.log('[DEBUG] No token found, returning 401');
         return res.status(401).json({ error: 'Access token required' });
     }
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
+        console.log('[DEBUG] Token decoded:', decoded);
         req.user = decoded;
         next();
     } catch (error) {
+        console.log('[DEBUG] Token verification failed:', error);
         if (error.name === 'TokenExpiredError') {
+            console.log('[DEBUG] Token expired, returning 401');
             return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
         }
+        console.log('[DEBUG] Invalid token, returning 403');
         return res.status(403).json({ error: 'Invalid token' });
     }
 };

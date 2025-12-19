@@ -27,6 +27,7 @@ import authRoutes from './routes/auth.routes.js';
 import domainsRoutes from './routes/domains.routes.js';
 import newsRoutes from './routes/news.routes.js';
 import usersRoutes from './routes/users.routes.js';
+import debugRoutes from './routes/debug.routes.js';
 
 // PostgreSQL connection
 const pool = new Pool({
@@ -264,6 +265,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/domains', domainsRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/debug', debugRoutes);
 
 // 404 handler
 app.use((req, res) => {

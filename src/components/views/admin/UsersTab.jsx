@@ -2,6 +2,9 @@ import React from 'react';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 
 const UsersTab = ({ users, handleOpenNewUser, handleEditUser, handleDeleteUser }) => {
+  // Debug: Log users data
+  console.log('[DEBUG] UsersTab received users:', users);
+  
   return (
     <div>
       <div className="section-header">
@@ -26,7 +29,10 @@ const UsersTab = ({ users, handleOpenNewUser, handleEditUser, handleDeleteUser }
             </tr>
           </thead>
           <tbody>
-            {users.map(user => (
+            {users.map(user => {
+              // Debug: Log each user
+              console.log('[DEBUG] Rendering user:', user);
+              return (
               <tr key={user.id}>
                 <td>{user.username}</td>
                 <td>{user.email}</td>
@@ -35,7 +41,9 @@ const UsersTab = ({ users, handleOpenNewUser, handleEditUser, handleDeleteUser }
                     {user.role}
                   </span>
                 </td>
-                <td>{user.domain || 'N/A'}</td>
+                <td>
+                  {user.domain || user.domain_name || user.domainId || user.domain_id || 'N/A'}
+                </td>
                 <td>
                   <button 
                     onClick={() => handleEditUser(user)}
@@ -51,7 +59,7 @@ const UsersTab = ({ users, handleOpenNewUser, handleEditUser, handleDeleteUser }
                   </button>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>

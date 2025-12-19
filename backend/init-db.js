@@ -13,12 +13,12 @@ const pool = new Pool({
 
 // User data with plain text passwords (will be hashed)
 const users = [
-    // Admin user
+    // Super Admin user
     {
         username: 'admin',
         email: 'admin@company.com',
         password: 'admin123',
-        role: 'admin',
+        role: 'super_admin',
         domain: null
     },
     // Contributor users
@@ -114,17 +114,27 @@ async function initDatabase() {
             );
         }
 
+        // First, get domain IDs
+        console.log('Getting domain IDs...');
+        const domainResults = await client.query('SELECT id, name FROM domains');
+        const domainMap = {};
+        domainResults.rows.forEach(row => {
+            domainMap[row.name] = row.id;
+        });
+        console.log('Domain map:', domainMap);
+
         // Insert users with hashed passwords
         console.log('Inserting users with hashed passwords...');
         const saltRounds = config.jwt.rounds;
 
         for (const user of users) {
             const hashedPassword = await bcrypt.hash(user.password, saltRounds);
+            const domainId = user.domain ? domainMap[user.domain] : null;
             await client.query(
-                'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5)',
-                [user.username, user.email, hashedPassword, user.role, user.domain]
+                'INSERT INTO users (username, email, password, role, domain_id) VALUES ($1, $2, $3, $4, $5)',
+                [user.username, user.email, hashedPassword, user.role, domainId]
             );
-            console.log(`✓ Created user: ${user.username} (${user.email})`);
+            console.log(`✓ Created user: ${user.username} (${user.email}) with role ${user.role}`);
         }
 
         // Insert sample subscribers
@@ -207,9 +217,13 @@ async function initDatabase() {
         ];
 
         for (const article of newsArticles) {
+            const domainId = domainMap[article.domain];
+            // Get author ID
+            const authorResult = await client.query('SELECT id FROM users WHERE username = $1', [article.author]);
+            const authorId = authorResult.rows.length > 0 ? authorResult.rows[0].id : null;
             await client.query(
-                'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, $5)',
-                [article.title, article.domain, article.content, article.author, article.date]
+                'INSERT INTO news (title, domain, content, author_id, date) VALUES ($1, $2, $3, $4, $5)',
+                [article.title, domainId, article.content, authorId, article.date]
             );
         }
 

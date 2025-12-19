@@ -64,9 +64,13 @@ export const users = {
     },
 
     update: async (id, userData) => {
+        const headers = getHeaders(true);
+        console.log('[DEBUG] Sending update request with headers:', headers);
+        console.log('[DEBUG] Sending update request with body:', JSON.stringify(userData));
+        
         const response = await fetch(`${API_URL}/api/users/${id}`, {
             method: 'PUT',
-            headers: getHeaders(true),
+            headers: headers,
             body: JSON.stringify(userData),
         });
 

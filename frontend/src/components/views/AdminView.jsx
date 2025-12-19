@@ -28,6 +28,7 @@ const AdminView = ({
     const [showAddUser, setShowAddUser] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
     const [newUser, setNewUser] = useState({ username: '', email: '', password: '', role: 'contributor', domain: '' });
+    const [changePassword, setChangePassword] = useState(false);
 
     // News Modal State
     const [showNewsModal, setShowNewsModal] = useState(false);
@@ -157,16 +158,24 @@ const AdminView = ({
     // Handlers for Users
     const handleEditUser = (user, e) => {
         e.preventDefault();
+        console.log('[DEBUG] Editing user:', user);
+        console.log('[DEBUG] Available domains:', domains);
         setEditingUser(user);
 
-        // Find the domain ID from the domain name
+        // Find the domain ID from the domain name or domain_id
         let domainId = '';
         if (user.domain) {
+            // User object has domain name
             const domainObj = domains.find(d => d.name === user.domain);
+            console.log('[DEBUG] Found domain object by name:', domainObj);
             if (domainObj) {
                 domainId = String(domainObj.id);
             }
+        } else if (user.domain_id || user.domainId) {
+            // User object has domain ID
+            domainId = String(user.domain_id || user.domainId);
         }
+        console.log('[DEBUG] Setting domainId:', domainId);
 
         setNewUser({
             username: user.username,
@@ -180,7 +189,17 @@ const AdminView = ({
 
     const handleUserSubmit = async (e) => {
         e.preventDefault();
-        const userData = editingUser ? { ...newUser, id: editingUser.id } : newUser;
+        // Create a copy of userData and conditionally include password
+        let userData = { ...newUser };
+        if (editingUser) {
+            userData.id = editingUser.id;
+            // For editing, only include password if changePassword is true and password is not empty
+            if (!changePassword || !userData.password || userData.password.trim() === '') {
+                delete userData.password;
+            }
+        }
+        
+        console.log('[DEBUG] Submitting user data:', userData);
         
         // For domain admins, ensure they can only assign users to their own domain
         if (currentUser.role === 'domain_admin') {
@@ -191,6 +210,7 @@ const AdminView = ({
             }
         }
         
+        console.log('[DEBUG] Final user data being sent:', userData);
         const success = await onSaveUser(userData, !!editingUser);
         if (success) closeUserModal();
     };
@@ -199,6 +219,7 @@ const AdminView = ({
         setShowAddUser(false);
         setEditingUser(null);
         setNewUser({ username: '', email: '', password: '', role: 'contributor', domain: '' });
+        setChangePassword(false);
     };
 
     // Handlers for News
@@ -402,15 +423,13 @@ const AdminView = ({
                         <Shield size={18} />
                         Domains
                     </button>
-                    {currentUser.role === 'super_admin' && (
-                        <button
-                            className={`tab ${activeTab === 'users' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('users')}
-                        >
-                            <User size={18} />
-                            Users
-                        </button>
-                    )}
+                    <button
+                        className={`tab ${activeTab === 'users' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('users')}
+                    >
+                        <User size={18} />
+                        Users
+                    </button>
                     <button
                         className={`tab ${activeTab === 'news' ? 'active' : ''}`}
                         onClick={() => setActiveTab('news')}
@@ -543,6 +562,8 @@ const AdminView = ({
                         setUserData={setNewUser}
                         isEditing={!!editingUser}
                         domains={currentUser.role === 'domain_admin' ? domains.filter(d => d.name === currentUser.domain) : domains}
+                        changePassword={changePassword}
+                        setChangePassword={setChangePassword}
                     />
 
                     {/* Search Bar */}
@@ -560,6 +581,8 @@ const AdminView = ({
                     </div>
 
                     <div className="table-container">
+                        {/* Debug: Log filtered users */}
+                        {console.log('[DEBUG] Filtered users:', filteredUsers)}
                         <table className="data-table">
                             <thead>
                                 <tr>
@@ -575,6 +598,8 @@ const AdminView = ({
                             <tbody>
                                 {filteredUsers.map(user => (
                                     <tr key={user.id} className="group">
+                                        {/* Debug: Log each user */}
+                                        {console.log('[DEBUG] Rendering user:', user)}
                                         <td>
                                             <div className="avatar avatar-sm">
                                                 {getInitials(user.username)}
@@ -594,19 +619,23 @@ const AdminView = ({
                                             </span>
                                         </td>
                                         <td>
-                                            {(user.role === 'super_admin' || !user.domain || user.domain === 'No Domain Assigned') ? (
+                                            {/* Consistent domain display using domain_name */}
+                                            {console.log('[DEBUG] User data for domain display:', user)}
+                                            {user.role === 'super_admin' ? (
                                                 <span className="text-tertiary">All domains</span>
                                             ) : (
-                                                <div className="flex items-center gap-2">
-                                                    <div
-                                                        className="w-2 h-2 rounded-full"
-                                                        style={{ backgroundColor: (domainColors && typeof domainColors === 'object' && domainColors[user.domain]) || getDomainColor(user.domain) || '#3b82f6' }}
-                                                        title={`Domain color for: ${user.domain}`}
-                                                    ></div>
-                                                    <span title={`Domain: ${user.domain || 'Unknown'}`}>
-                                                        {user.domain && typeof user.domain === 'string' ? user.domain : (user.domain ? String(user.domain) : '??')}
-                                                    </span>
-                                                </div>
+                                                user.domain_name ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div
+                                                            className="w-2 h-2 rounded-full"
+                                                            style={{ backgroundColor: (domainColors && typeof domainColors === 'object' && domainColors[user.domain_name]) || getDomainColor(user.domain_name) || '#3b82f6' }}
+                                                            title={`Domain: ${user.domain_name}`}
+                                                        ></div>
+                                                        <span>{user.domain_name}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-tertiary">No domain</span>
+                                                )
                                             )}
                                         </td>
                                         <td className="text-tertiary">

@@ -10,7 +10,7 @@ const config = {
         host: process.env.DB_HOST || (process.env.NODE_ENV === 'production' ? 'db' : 'localhost'),
         database: process.env.DB_NAME || 'newsletter_app',
         password: process.env.DB_PASSWORD || 'postgres',
-        port: parseInt(process.env.DB_PORT || '5432'),
+        port: parseInt(process.env.DB_PORT || '5433'),
     },
     jwt: {
         secret: process.env.JWT_SECRET || 'dev_secret_key',

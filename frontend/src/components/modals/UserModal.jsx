@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { X, User, Mail, Shield, Lock, Briefcase } from 'lucide-react';
 
-const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, domains, isProfile }) => {
+const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, domains, isProfile, changePassword, setChangePassword }) => {
     if (!show) return null;
 
     // Calculate selected domain ID safely
@@ -88,13 +88,14 @@ const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, do
                                     >
                                         <option value="user">User</option>
                                         <option value="contributor">Contributor</option>
-                                        <option value="admin">Admin</option>
+                                        <option value="domain_admin">Domain Admin</option>
+                                        <option value="super_admin">Super Admin</option>
                                     </select>
                                 </div>
                             </div>
                         )}
 
-                        {!isProfile && normalizedRole === 'contributor' && (
+                        {!isProfile && (normalizedRole === 'contributor' || normalizedRole === 'domain_admin') && (
                             <div className="form-group animate-fadeIn">
                                 <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Assign Domain</label>
                                 <div className="input-with-icon">
@@ -114,22 +115,58 @@ const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, do
                             </div>
                         )}
 
-                        <div className="form-group col-span-2">
-                            <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">
-                                {isEditing ? 'Update Password' : 'Password'}
-                            </label>
-                            <div className="input-with-icon">
-                                <Lock className="input-icon" size={18} />
-                                <input
-                                    type="password"
-                                    value={userData?.password || ''}
-                                    onChange={e => setUserData({ ...userData, password: e.target.value })}
-                                    className="form-input glass pl-10 h-11"
-                                    required={!isEditing}
-                                    placeholder={isEditing ? "Leave blank to keep current" : "••••••••"}
-                                />
+                        {isEditing ? (
+                            <div className="form-group col-span-2">
+                                <div className="flex items-center mb-2">
+                                    <input
+                                        type="checkbox"
+                                        id="changePassword"
+                                        className="mr-2"
+                                        checked={changePassword}
+                                        onChange={(e) => {
+                                            setChangePassword(e.target.checked);
+                                            if (!e.target.checked) {
+                                                setUserData({ ...userData, password: '' });
+                                            }
+                                        }}
+                                    />
+                                    <label htmlFor="changePassword" className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">
+                                        Change Password
+                                    </label>
+                                </div>
+                                <div className="input-with-icon">
+                                    <Lock className="input-icon" size={18} />
+                                    <input
+                                        type="password"
+                                        value={userData?.password || ''}
+                                        onChange={e => setUserData({ ...userData, password: e.target.value })}
+                                        className="form-input glass pl-10 h-11"
+                                        placeholder="Min 8 chars, upper/lowercase, number"
+                                        disabled={!changePassword}
+                                    />
+                                </div>
+                                {changePassword && userData?.password && userData.password.trim() !== '' && (
+                                    <p className="text-xs text-tertiary mt-1">Password must be at least 8 characters with uppercase, lowercase, and number</p>
+                                )}
                             </div>
-                        </div>
+                        ) : (
+                            <div className="form-group col-span-2">
+                                <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">
+                                    Password
+                                </label>
+                                <div className="input-with-icon">
+                                    <Lock className="input-icon" size={18} />
+                                    <input
+                                        type="password"
+                                        value={userData?.password || ''}
+                                        onChange={e => setUserData({ ...userData, password: e.target.value })}
+                                        className="form-input glass pl-10 h-11"
+                                        required
+                                        placeholder="Min 8 chars, upper/lowercase, number"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="modal-footer border-none pt-4">
