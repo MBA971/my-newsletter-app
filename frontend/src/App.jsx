@@ -279,33 +279,38 @@ const App = () => {
         const userDomain = currentUser.domain;
         console.log('[DEBUG] Contributor role - user domain:', userDomain);
         
-        if (userDomain) {
-          // Try to find domain by name (case-insensitive and trimmed)
-          const domainObj = domains.find(d => 
-            d.name && userDomain && 
-            d.name.toString().trim().toLowerCase() === userDomain.toString().trim().toLowerCase()
-          );
-          domainValue = domainObj ? domainObj.id : null;
-          console.log('[DEBUG] Contributor role - found domain object:', domainObj, 'resolved domainValue:', domainValue);
-          
-          // If still null, try to get domain from existing article as fallback
-          if (domainValue === null && newsData.id) {
-            const existingNews = news.find(n => n.id === newsData.id);
-            if (existingNews) {
-              // Try to get domain ID from existing news item
-              domainValue = existingNews.domain_id || 
-                           (existingNews.domain && typeof existingNews.domain === 'number' ? existingNews.domain : null);
-              console.log('[DEBUG] Contributor role - using domain from existing article:', domainValue);
-              
-              // If we still don't have a domain ID, try to find it by domain name
-              if (domainValue === null && existingNews.domain && typeof existingNews.domain === 'string') {
-                const existingDomainObj = domains.find(d => 
-                  d.name && existingNews.domain && 
-                  d.name.toString().trim().toLowerCase() === existingNews.domain.toString().trim().toLowerCase()
-                );
-                domainValue = existingDomainObj ? existingDomainObj.id : null;
-                console.log('[DEBUG] Contributor role - found domain by existing article name:', existingDomainObj, 'domainValue:', domainValue);
-              }
+        // Check if contributor has a domain assigned
+        if (!userDomain) {
+          console.error('[ERROR] Contributor user has no domain assigned');
+          showNotification('You must be assigned to a domain before creating or editing articles. Please contact your administrator.', 'error');
+          return false;
+        }
+        
+        // Try to find domain by name (case-insensitive and trimmed)
+        const domainObj = domains.find(d => 
+          d.name && userDomain && 
+          d.name.toString().trim().toLowerCase() === userDomain.toString().trim().toLowerCase()
+        );
+        domainValue = domainObj ? domainObj.id : null;
+        console.log('[DEBUG] Contributor role - found domain object:', domainObj, 'resolved domainValue:', domainValue);
+        
+        // If still null, try to get domain from existing article as fallback
+        if (domainValue === null && newsData.id) {
+          const existingNews = news.find(n => n.id === newsData.id);
+          if (existingNews) {
+            // Try to get domain ID from existing news item
+            domainValue = existingNews.domain_id || 
+                         (existingNews.domain && typeof existingNews.domain === 'number' ? existingNews.domain : null);
+            console.log('[DEBUG] Contributor role - using domain from existing article:', domainValue);
+            
+            // If we still don't have a domain ID, try to find it by domain name
+            if (domainValue === null && existingNews.domain && typeof existingNews.domain === 'string') {
+              const existingDomainObj = domains.find(d => 
+                d.name && existingNews.domain && 
+                d.name.toString().trim().toLowerCase() === existingNews.domain.toString().trim().toLowerCase()
+              );
+              domainValue = existingDomainObj ? existingDomainObj.id : null;
+              console.log('[DEBUG] Contributor role - found domain by existing article name:', existingDomainObj, 'domainValue:', domainValue);
             }
           }
         }

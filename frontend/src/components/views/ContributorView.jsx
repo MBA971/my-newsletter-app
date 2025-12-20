@@ -41,6 +41,12 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
     };
 
     const handleAddNew = () => {
+        // Check if contributor has a domain assigned
+        if (!currentUser.domain) {
+            alert('You must be assigned to a domain before creating articles. Please contact your administrator.');
+            return;
+        }
+        
         setFormData({ title: '', content: '', domain: currentUser.domain });
         setEditingNews(null);
         setShowModal(true);
@@ -58,6 +64,12 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
 
     const handleSave = async (e) => {
         e.preventDefault();
+
+        // Check if contributor has a domain assigned
+        if (currentUser.role === 'contributor' && !currentUser.domain) {
+            alert('You must be assigned to a domain before creating or editing articles. Please contact your administrator.');
+            return;
+        }
 
         const newsItem = {
             ...formData,
@@ -88,6 +100,8 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                 <button
                     onClick={handleAddNew}
                     className="btn btn-success"
+                    disabled={!currentUser.domain}
+                    title={!currentUser.domain ? "You must be assigned to a domain to create articles" : ""}
                 >
                     <Plus size={20} />
                     Add Article
@@ -102,6 +116,11 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                     </div>
                     <h3 className="empty-state-title">No articles yet</h3>
                     <p className="empty-state-text">Start by creating your first article</p>
+                    {!currentUser.domain && (
+                        <p className="text-error-500 mt-2">
+                            Note: You must be assigned to a domain by your administrator before you can create articles.
+                        </p>
+                    )}
                 </div>
             ) : (
                 <div className="grid-responsive">
