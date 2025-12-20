@@ -874,7 +874,7 @@ app.get('/api/news/contributor', authenticateToken, requireContributor, async (r
        FROM news n 
        LEFT JOIN domains d ON n.domain = d.id 
        LEFT JOIN users u ON n.author_id = u.id
-       WHERE n.author_id = $1
+       WHERE n.author_id = $1 AND n.archived = FALSE
        ORDER BY n.date DESC`,
       [req.user.userId]
     );
