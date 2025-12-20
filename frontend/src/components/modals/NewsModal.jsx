@@ -1,8 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { X, FileText, Heading, Briefcase, AlignLeft } from 'lucide-react';
 
 const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, currentUser, domains }) => {
     if (!show) return null;
+
+    // Character counter state
+    const [charCount, setCharCount] = useState(newsData.content ? newsData.content.length : 0);
+    const MAX_CHARS = 5000;
+
+    // Update character count when content changes
+    useEffect(() => {
+        setCharCount(newsData.content ? newsData.content.length : 0);
+    }, [newsData.content]);
 
     const domainOptions = useMemo(() => {
         if (!domains || !Array.isArray(domains)) return [];
@@ -36,6 +45,14 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
         const domainName = e.target.value;
         const domainId = getDomainIdByName(domainName);
         setNewsData({ ...newsData, domain: domainId });
+    };
+
+    const handleContentChange = (e) => {
+        const content = e.target.value;
+        // Only update if within character limit
+        if (content.length <= MAX_CHARS) {
+            setNewsData({ ...newsData, content });
+        }
     };
 
     return (
@@ -98,11 +115,22 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                             <AlignLeft className="absolute top-3 left-3 text-tertiary" size={18} />
                             <textarea
                                 value={newsData.content || ''}
-                                onChange={e => setNewsData({ ...newsData, content: e.target.value })}
+                                onChange={handleContentChange}
                                 className="form-textarea glass pl-10 pt-3 min-h-[200px]"
                                 required
                                 placeholder="Write your content here..."
+                                maxLength={MAX_CHARS}
                             />
+                        </div>
+                        <div className="flex justify-between items-center mt-2">
+                            <div className={`text-sm ${charCount > MAX_CHARS * 0.9 ? 'text-error-500' : 'text-tertiary'}`}>
+                                {charCount}/{MAX_CHARS} characters
+                            </div>
+                            {charCount > MAX_CHARS * 0.9 && (
+                                <div className="text-sm text-error-500">
+                                    Approaching character limit
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -110,7 +138,11 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                         <button type="button" onClick={onClose} className="btn btn-ghost glass h-11 px-6">
                             Discard
                         </button>
-                        <button type="submit" className="btn btn-success h-11 px-8 shadow-success font-bold">
+                        <button 
+                            type="submit" 
+                            className="btn btn-success h-11 px-8 shadow-success font-bold"
+                            disabled={charCount > MAX_CHARS}
+                        >
                             {isEditing ? 'Update Article' : 'Publish News'}
                         </button>
                     </div>
