@@ -407,9 +407,25 @@ export const updateNews = async (req, res) => {
     } else {
       console.log(`[DEBUG] No domain provided or invalid domain value: ${domain}`);
       // If no domain is provided, use the original domain
-      if (!domain) {
+      if (domain === null || domain === undefined || domain === '') {
         domain = article.domain;
         console.log(`[DEBUG] Using original article domain: ${domain}`);
+        
+        // Validate that the original domain is still valid
+        if (domain) {
+          const domainResult = await pool.query(
+            'SELECT name FROM domains WHERE id = $1',
+            [domain]
+          );
+          
+          if (domainResult.rows.length === 0) {
+            console.log(`[DEBUG] Original article domain is invalid: ${domain}`);
+            return res.status(400).json({ error: 'Article domain is invalid. Please contact administrator.' });
+          }
+        } else {
+          console.log(`[DEBUG] Article has no domain assigned`);
+          return res.status(400).json({ error: 'Article has no domain assigned. Please contact administrator.' });
+        }
       }
     }
 
