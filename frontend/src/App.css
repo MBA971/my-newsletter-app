@@ -1725,81 +1725,82 @@
 
 .text-gradient-orange {
   background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
- / *   C u s t o m   s t y l e s   f o r   c o n t r i b u t o r   n e w s   c a r d s   * / 
- . n e w s - c a r d - m e t a   { 
-     d i s p l a y :   f l e x ; 
-     a l i g n - i t e m s :   c e n t e r ; 
-     g a p :   v a r ( - - s p a c i n g - 2 ) ; 
-     m a r g i n - b o t t o m :   v a r ( - - s p a c i n g - 2 ) ; 
- } 
- 
- . n e w s - c a r d - t i t l e   { 
-     f o n t - s i z e :   v a r ( - - f o n t - s i z e - l g ) ; 
-     f o n t - w e i g h t :   v a r ( - - f o n t - w e i g h t - b o l d ) ; 
-     c o l o r :   v a r ( - - t e x t - p r i m a r y ) ; 
-     m a r g i n - b o t t o m :   v a r ( - - s p a c i n g - 3 ) ; 
-     l i n e - h e i g h t :   v a r ( - - l i n e - h e i g h t - t i g h t ) ; 
- } 
- 
- . n e w s - c a r d - c o n t e n t   { 
-     c o l o r :   v a r ( - - t e x t - s e c o n d a r y ) ; 
-     l i n e - h e i g h t :   v a r ( - - l i n e - h e i g h t - r e l a x e d ) ; 
-     m a r g i n - b o t t o m :   v a r ( - - s p a c i n g - 4 ) ; 
- } 
- 
- . n e w s - c a r d - f o o t e r   { 
-     d i s p l a y :   f l e x ; 
-     a l i g n - i t e m s :   c e n t e r ; 
-     j u s t i f y - c o n t e n t :   s p a c e - b e t w e e n ; 
-     p a d d i n g - t o p :   v a r ( - - s p a c i n g - 3 ) ; 
-     b o r d e r - t o p :   1 p x   s o l i d   v a r ( - - b o r d e r - c o l o r ) ; 
- } 
- 
- . n e w s - c a r d - a c t i o n s   { 
-     d i s p l a y :   f l e x ; 
-     g a p :   v a r ( - - s p a c i n g - 2 ) ; 
- } 
- 
- . n e w s - c a r d - a c t i o n - b t n   { 
-     w i d t h :   3 6 p x ; 
-     h e i g h t :   3 6 p x ; 
-     d i s p l a y :   f l e x ; 
-     a l i g n - i t e m s :   c e n t e r ; 
-     j u s t i f y - c o n t e n t :   c e n t e r ; 
-     b o r d e r - r a d i u s :   v a r ( - - r a d i u s - f u l l ) ; 
-     b o r d e r :   1 p x   s o l i d   v a r ( - - b o r d e r - c o l o r ) ; 
-     b a c k g r o u n d - c o l o r :   v a r ( - - b g - t e r t i a r y ) ; 
-     c u r s o r :   p o i n t e r ; 
-     t r a n s i t i o n :   a l l   v a r ( - - t r a n s i t i o n - f a s t ) ; 
- } 
- 
- . n e w s - c a r d - a c t i o n - b t n : h o v e r   { 
-     t r a n s f o r m :   s c a l e ( 1 . 0 5 ) ; 
-     b o x - s h a d o w :   v a r ( - - s h a d o w - s m ) ; 
-     b o r d e r - c o l o r :   v a r ( - - b o r d e r - h o v e r ) ; 
- } 
- 
- . n e w s - c a r d - a c t i o n - b t n : d i s a b l e d   { 
-     o p a c i t y :   0 . 5 ; 
-     c u r s o r :   n o t - a l l o w e d ; 
- } 
- 
- @ m e d i a   ( m a x - w i d t h :   7 6 8 p x )   { 
-     . n e w s - c a r d - t i t l e   { 
-         f o n t - s i z e :   v a r ( - - f o n t - s i z e - b a s e ) ; 
-     } 
-     
-     . n e w s - c a r d - c o n t e n t   { 
-         f o n t - s i z e :   v a r ( - - f o n t - s i z e - s m ) ; 
-     } 
-     
-     . n e w s - c a r d - a c t i o n - b t n   { 
-         w i d t h :   3 2 p x ; 
-         h e i g h t :   3 2 p x ; 
-     } 
- } 
-  
- 
+
+
+/* Custom styles for contributor news cards */
+.news-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+}
+
+.news-card-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-3);
+  line-height: var(--line-height-tight);
+}
+
+.news-card-content {
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--spacing-4);
+}
+
+.news-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--spacing-3);
+  border-top: 1px solid var(--border-color);
+}
+
+.news-card-actions {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.news-card-action-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.news-card-action-btn:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-hover);
+}
+
+.news-card-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .news-card-title {
+    font-size: var(--font-size-base);
+  }
+  
+  .news-card-content {
+    font-size: var(--font-size-sm);
+  }
+  
+  .news-card-action-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
