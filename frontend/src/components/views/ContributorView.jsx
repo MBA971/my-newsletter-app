@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Newspaper, Trash2, Edit } from 'lucide-react';
 import NewsModal from '../modals/NewsModal';
 
-const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews }) => {
+const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews, onArchiveNews, onUnarchiveNews }) => {
     // State for modal
     const [showModal, setShowModal] = useState(false);
     const [editingNews, setEditingNews] = useState(null);
@@ -30,6 +30,15 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
         }
         return typeof domainValue === 'string' ? domainValue : '';
     }, [domains]);
+
+    // Function to handle archive/unarchive
+    const handleArchiveToggle = async (item) => {
+        if (item.archived) {
+            await onUnarchiveNews(item.id);
+        } else {
+            await onArchiveNews(item.id);
+        }
+    };
 
     const handleAddNew = () => {
         setFormData({ title: '', content: '', domain: currentUser.domain });
@@ -97,7 +106,11 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
             ) : (
                 <div className="grid-responsive">
                     {contributorNews.map(item => (
-                        <div key={item.id} className="card">
+                        <div 
+                            key={item.id} 
+                            className={`card ${item.archived ? 'opacity-75' : ''}`}
+                            style={item.archived ? { borderLeft: '4px solid #6c757d' } : {}}
+                        >
                             <div className="flex items-start justify-between gap-4">
                                 <div style={{ flex: 1 }}>
                                     <div className="flex items-center gap-3 mb-2">
@@ -116,8 +129,11 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
                                         {item.pending_validation && (
                                             <span className="badge badge-warning">PENDING_VALIDATION</span>
                                         )}
+                                        {item.archived && (
+                                            <span className="badge" style={{backgroundColor: '#6c757d', color: 'white'}}>ARCHIVED</span>
+                                        )}
                                     </div>
-                                    <h3 className="mb-2">{item.title}</h3>
+                                    <h3 className="mb-2" style={item.archived ? { textDecoration: 'line-through' } : {}}>{item.title}</h3>
                                     <p className="m-0 text-secondary">{item.content.substring(0, 150)}...</p>
                                 </div>
                                 <div className="flex gap-2">
@@ -126,17 +142,50 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews 
                                         className="btn-icon"
                                         style={{ color: 'var(--primary-600)' }}
                                         title="Edit article"
+                                        disabled={item.archived}
                                     >
                                         <Edit size={20} />
                                     </button>
                                     <button
-                                        onClick={() => onDeleteNews(item.id)}
+                                        onClick={() => handleArchiveToggle(item)}
                                         className="btn-icon"
-                                        style={{ color: 'var(--error-600)' }}
-                                        title="Delete article"
+                                        style={{ color: item.archived ? 'var(--success-600)' : 'var(--warning-600)' }}
+                                        title={item.archived ? "Unarchive article" : "Archive article"}
                                     >
-                                        <Trash2 size={20} />
+                                        {item.archived ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                                <path d="M14 3v4a2 2 0 0 0 2 2h4"/>
+                                                <path d="m9 15 2 2 4-4"/>
+                                            </svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                                <polyline points="7 10 12 15 17 10"/>
+                                                <line x1="12" y1="15" x2="12" y2="3"/>
+                                            </svg>
+                                        )}
                                     </button>
+                                    {item.archived ? (
+                                        <button
+                                            onClick={() => onDeleteNews(item.id)}
+                                            className="btn-icon"
+                                            style={{ color: 'var(--error-600)' }}
+                                            title="Permanently delete article (admins only)"
+                                            disabled={true}
+                                        >
+                                            <Trash2 size={20} />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => onDeleteNews(item.id)}
+                                            className="btn-icon"
+                                            style={{ color: 'var(--error-600)' }}
+                                            title="Delete article"
+                                        >
+                                            <Trash2 size={20} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

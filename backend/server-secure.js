@@ -669,7 +669,77 @@ app.post('/api/news/:id/grant-edit', authenticateToken, requireContributor, asyn
   }
 });
 
-// Delete news (contributor can delete their own, admin can delete any)
+// Archive news (contributor can archive their own articles)
+app.post('/api/news/:id/archive', authenticateToken, requireContributor, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Get the news item
+        const newsResult = await pool.query('SELECT * FROM news WHERE id = $1', [id]);
+
+        if (newsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'News not found' });
+        }
+
+        const newsItem = newsResult.rows[0];
+
+        // Check if user is authorized to archive this article:
+        // 1. Admin can archive any article
+        // 2. Author can archive their own article (check by user ID)
+        // 3. Editors can archive articles they have been granted access to
+        const isAuthorized = (req.user.role === 'super_admin' || req.user.role === 'domain_admin') ||
+          newsItem.author_id === req.user.userId ||
+          (Array.isArray(newsItem.editors) && newsItem.editors.includes(req.user.email));
+
+        if (!isAuthorized) {
+            return res.status(403).json({ error: 'You do not have permission to archive this article' });
+        }
+
+        // Archive the article
+        await pool.query('UPDATE news SET archived = true WHERE id = $1', [id]);
+        res.json({ message: 'News archived successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Unarchive news (contributor can unarchive their own articles)
+app.post('/api/news/:id/unarchive', authenticateToken, requireContributor, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Get the news item
+        const newsResult = await pool.query('SELECT * FROM news WHERE id = $1', [id]);
+
+        if (newsResult.rows.length === 0) {
+            return res.status(404).json({ error: 'News not found' });
+        }
+
+        const newsItem = newsResult.rows[0];
+
+        // Check if user is authorized to unarchive this article:
+        // 1. Admin can unarchive any article
+        // 2. Author can unarchive their own article (check by user ID)
+        // 3. Editors can unarchive articles they have been granted access to
+        const isAuthorized = (req.user.role === 'super_admin' || req.user.role === 'domain_admin') ||
+          newsItem.author_id === req.user.userId ||
+          (Array.isArray(newsItem.editors) && newsItem.editors.includes(req.user.email));
+
+        if (!isAuthorized) {
+            return res.status(403).json({ error: 'You do not have permission to unarchive this article' });
+        }
+
+        // Unarchive the article
+        await pool.query('UPDATE news SET archived = false WHERE id = $1', [id]);
+        res.json({ message: 'News unarchived successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Delete news (admin can permanently delete any)
 app.delete('/api/news/:id', authenticateToken, requireContributor, async (req, res) => {
     try {
         const { id } = req.params;
@@ -683,22 +753,12 @@ app.delete('/api/news/:id', authenticateToken, requireContributor, async (req, r
 
         const newsItem = newsResult.rows[0];
 
-        // Check permissions
-        if (req.user.role === 'contributor') {
-            // Check if user is authorized to delete this article:
-            // 1. Admin can delete any article
-            // 2. Author can delete their own article (check by user ID)
-            // 3. Editors can delete articles they have been granted access to
-            const isAuthorized = (req.user.role === 'super_admin' || req.user.role === 'domain_admin') ||
-              newsItem.author_id === req.user.userId ||
-              (Array.isArray(newsItem.editors) && newsItem.editors.includes(req.user.email));
-
-            if (!isAuthorized) {
-                return res.status(403).json({ error: 'You do not have permission to delete this article' });
-            }
+        // Only admins can permanently delete articles
+        if (req.user.role !== 'super_admin' && req.user.role !== 'domain_admin') {
+            return res.status(403).json({ error: 'Only administrators can permanently delete articles' });
         }
 
-        // Admin can delete any, contributor passed the check above
+        // Admin can delete any article
         await pool.query('DELETE FROM news WHERE id = $1', [id]);
         res.json({ message: 'News deleted successfully' });
     } catch (err) {
@@ -874,7 +934,7 @@ app.get('/api/news/contributor', authenticateToken, requireContributor, async (r
        FROM news n 
        LEFT JOIN domains d ON n.domain = d.id 
        LEFT JOIN users u ON n.author_id = u.id
-       WHERE n.author_id = $1 AND n.archived = FALSE
+       WHERE n.author_id = $1
        ORDER BY n.date DESC`,
       [req.user.userId]
     );

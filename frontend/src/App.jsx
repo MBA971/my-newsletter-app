@@ -306,6 +306,27 @@ const App = () => {
     }
   };
 
+  // Archive/Unarchive handlers for contributors
+  const handleArchiveNews = async (id) => {
+    try {
+      await newsApi.archive(id);
+      showNotification('News archived', 'success');
+      fetchData(); // Refresh the data
+    } catch (error) {
+      showNotification(error.message || 'Error archiving news', 'error');
+    }
+  };
+
+  const handleUnarchiveNews = async (id) => {
+    try {
+      await newsApi.unarchive(id);
+      showNotification('News unarchived', 'success');
+      fetchData(); // Refresh the data
+    } catch (error) {
+      showNotification(error.message || 'Error unarchiving news', 'error');
+    }
+  };
+
   // Profile Handlers
   const handleOpenProfile = () => {
     setProfileData({
@@ -413,6 +434,8 @@ const App = () => {
             currentUser={currentUser}
             onSaveNews={handleSaveNews}
             onDeleteNews={handleDeleteNews}
+            onArchiveNews={handleArchiveNews}
+            onUnarchiveNews={handleUnarchiveNews}
           />
         )}
 

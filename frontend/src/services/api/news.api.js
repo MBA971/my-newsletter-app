@@ -133,6 +133,24 @@ export const news = {
         return response.json();
     },
 
+    archive: async (id) => {
+        const response = await fetch(`${API_URL}/api/news/${id}/archive`, {
+            method: 'POST',
+            headers: getHeaders(true),
+        });
+        if (!response.ok) throw new Error('Failed to archive news');
+        return response.json();
+    },
+
+    unarchive: async (id) => {
+        const response = await fetch(`${API_URL}/api/news/${id}/unarchive`, {
+            method: 'POST',
+            headers: getHeaders(true),
+        });
+        if (!response.ok) throw new Error('Failed to unarchive news');
+        return response.json();
+    },
+
     validate: async (id) => {
         const response = await fetch(`${API_URL}/api/news/${id}/validate`, {
             method: 'POST',
