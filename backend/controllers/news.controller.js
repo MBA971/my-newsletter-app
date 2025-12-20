@@ -64,22 +64,27 @@ export const getContributorNews = async (req, res) => {
     const userId = req.user.userId;
     console.log('Fetching news for user ID:', userId);
     
-    let query = `
-      SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name, n.likes_count
+    // Direct query to ensure archived articles are filtered out
+    const query = `
+      SELECT n.id, n.title, n.content, n.author_id, n.date, n.domain, n.likes_count, n.archived, n.pending_validation,
+             d.name as domain_name, u.username as author_name
       FROM news n 
       LEFT JOIN domains d ON n.domain = d.id 
       LEFT JOIN users u ON n.author_id = u.id
-      WHERE n.author_id = $1  -- Only show articles by this contributor
+      WHERE n.author_id = $1 AND n.archived = FALSE
+      ORDER BY n.date DESC
     `;
     
-    // Filter out archived articles
-    query += ` AND n.archived = false`;
-    
-    query += ` ORDER BY n.date DESC`;
     console.log('Executing query:', query, 'with userId:', userId);
     
     const result = await pool.query(query, [userId]);
-    console.log('Query result rows:', result.rows.length);
+    console.log('Raw query result:', result.rows);
+    console.log('Raw query result rows:', result.rows.length);
+    
+    // Log each row to see the archived status
+    result.rows.forEach((row, index) => {
+      console.log(`Row ${index}: id=${row.id}, title=${row.title}, archived=${row.archived}`);
+    });
     
     // Transform the data to match the old format (domain as name instead of ID)
     const transformedRows = result.rows.map(row => ({
@@ -333,9 +338,10 @@ export const updateNews = async (req, res) => {
       return res.status(400).json({ error: 'Invalid news ID' });
     }
 
-    // Check if user can edit this article
     console.log(`[DEBUG] Update News - Received ID: ${id} (Type: ${typeof id})`);
+    console.log(`[DEBUG] Update News - Received data:`, { title, domain, content });
 
+    // Check if user can edit this article
     const newsResult = await pool.query(
       'SELECT * FROM news WHERE id = $1',
       [id]
@@ -382,24 +388,44 @@ export const updateNews = async (req, res) => {
     if (req.user.role === 'contributor') {
       // Override domain with the original domain to prevent domain changes
       domain = article.domain;
+      console.log(`[DEBUG] Contributor role - forcing domain to original: ${domain}`);
     }
 
     // Validate that domain exists if provided
-    if (domain) {
+    if (domain !== undefined && domain !== null && domain !== '') {
+      console.log(`[DEBUG] Validating domain: ${domain} (type: ${typeof domain})`);
       const domainResult = await pool.query(
         'SELECT name FROM domains WHERE id = $1',
         [domain]
       );
       
       if (domainResult.rows.length === 0) {
+        console.log(`[DEBUG] Invalid domain: ${domain}`);
         return res.status(400).json({ error: 'Invalid domain' });
       }
+      console.log(`[DEBUG] Domain validation passed: ${domainResult.rows[0].name}`);
+    } else {
+      console.log(`[DEBUG] No domain provided or invalid domain value: ${domain}`);
+      // If no domain is provided, use the original domain
+      if (!domain) {
+        domain = article.domain;
+        console.log(`[DEBUG] Using original article domain: ${domain}`);
+      }
     }
+
+    // Validate required fields
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required' });
+    }
+
+    console.log(`[DEBUG] Updating news with:`, { title, domain, content, id });
 
     const result = await pool.query(
       'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
       [title, domain, content, id]
     );
+
+    console.log(`[DEBUG] Update result:`, result.rows[0]);
 
     // Join with users and domains tables to get author username and domain name for response
     const joinedResult = await pool.query(
@@ -430,8 +456,8 @@ export const updateNews = async (req, res) => {
     const decodedResult = decodeNewsContent([finalResult])[0];
     res.json(decodedResult);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('[ERROR] updateNews:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 };
 

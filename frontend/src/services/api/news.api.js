@@ -96,6 +96,7 @@ export const news = {
     },
 
     update: async (id, newsData) => {
+        console.log('[DEBUG] newsApi.update called with:', { id, newsData });
         const response = await fetch(`${API_URL}/api/news/${id}`, {
             method: 'PUT',
             headers: getHeaders(true),
@@ -103,13 +104,22 @@ export const news = {
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
+            const errorText = await response.text();
+            console.log('[DEBUG] Update response not ok:', { status: response.status, errorText });
+            
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch (e) {
+                errorData = { message: errorText || 'Failed to update news' };
+            }
+            
             if (errorData.details) {
                 // Extract validation error messages
                 const messages = errorData.details.map(detail => detail.msg).join(', ');
                 throw new Error(messages || 'Failed to update news');
             }
-            throw new Error('Failed to update news');
+            throw new Error(errorData.message || errorData.error || 'Failed to update news');
         }
 
         return response.json();

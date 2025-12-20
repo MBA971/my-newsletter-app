@@ -270,16 +270,20 @@ const App = () => {
   // News Handlers
   const handleSaveNews = async (newsData, isEditing) => {
     try {
+      console.log('[DEBUG] handleSaveNews called with:', { newsData, isEditing });
       let domainValue = newsData.domain;
       if (currentUser.role === 'contributor') {
         const domainObj = domains.find(d => d.name === currentUser.domain);
         domainValue = domainObj ? domainObj.id : null;
+        console.log('[DEBUG] Contributor role - resolved domainValue:', domainValue);
       } else if (typeof newsData.domain === 'string') {
         const domainObj = domains.find(d => d.name === newsData.domain);
         domainValue = domainObj ? domainObj.id : newsData.domain;
+        console.log('[DEBUG] String domain - resolved domainValue:', domainValue);
       }
 
       const payload = { ...newsData, author: currentUser.username, domain: domainValue };
+      console.log('[DEBUG] Sending payload:', payload);
 
       if (isEditing) {
         await newsApi.update(newsData.id, payload);
@@ -291,6 +295,7 @@ const App = () => {
       fetchData();
       return true;
     } catch (error) {
+      console.error('[ERROR] handleSaveNews:', error);
       showNotification(error.message || 'Error saving news', 'error');
       return false;
     }
