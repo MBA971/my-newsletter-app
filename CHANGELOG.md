@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-12-20
+
+### Added
+- Modern theme system with macOS and Windows 11 styles
+- Redis-based caching system for improved performance
+- Theme selector in user profile modal
+- Comprehensive theme documentation
+- Domain-specific filtering for domain administrators
+- Enhanced error handling with notification system
+- Improved security with rate limiting and input validation
+- Better user experience with consistent version display
+
+### Changed
+- Implemented Model-View-Controller architecture for better code organization
+- Separated business logic from presentation components
+- Updated API service files with Docker URL resolution fixes
+- Enhanced user profile modal with theme selection
+- Improved domain admin access controls for news management
+- Optimized component structure with better separation of concerns
+
+### Fixed
+- Domain assignment issues for contributors and domain admins
+- React development error with static flag
+- API URL resolution in Docker environments
+- Caching implementation for database queries
+- User experience consistency across different views
+- Version display inconsistencies across the application
+
 ## [1.3.0] - 2025-12-19
 
 ### Added

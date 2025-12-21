@@ -102,7 +102,7 @@ async function initDatabase() {
         await client.query('CREATE INDEX IF NOT EXISTS idx_news_date ON news(date)');
         await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
         await client.query('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)');
-        await client.query('CREATE INDEX IF NOT EXISTS idx_users_domain ON users(domain)');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_users_domain_id ON users(domain_id)');
         console.log('✅ Indexes created successfully');
 
         // Insert domains

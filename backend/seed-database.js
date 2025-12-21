@@ -75,7 +75,7 @@ async function resetAndSeedDatabase() {
             // Hash the password before inserting
             const hashedPassword = await bcrypt.hash(user.password, parseInt(process.env.BCRYPT_ROUNDS) || 12);
             await pool.query(
-                'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5)',
+                'INSERT INTO users (username, email, password, role, domain_id) VALUES ($1, $2, $3, $4, $5)',
                 [user.username, user.email, hashedPassword, user.role, user.domain]
             );
         }

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, LogOut, Sun, Moon, Newspaper, Mail } from 'lucide-react';
 import './App.css';
+import './themes/modernThemes.css';
 
 // Services
 import { auth, domains as domainsApi, news as newsApi, users as usersApi, audit as auditApi } from './services/api';
+
 
 // Components
 import Notification from './components/ui/Notification';
@@ -46,7 +48,12 @@ const App = () => {
 
   // Memoized domain colors map
   const domainColors = useMemo(() =>
-    domains.reduce((acc, domain) => ({ ...acc, [domain.name]: domain.color }), {}),
+    domains.reduce((acc, domain) => {
+      if (domain && domain.name && domain.color) {
+        acc[domain.name] = domain.color;
+      }
+      return acc;
+    }, {}),
     [domains]);
 
   // Theme Management
@@ -55,6 +62,9 @@ const App = () => {
     if (savedTheme === 'dark') {
       setDarkMode(true);
       document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      // Apply default theme (macOS style)
+      document.body.className = 'theme-macos';
     }
   }, []);
 
@@ -86,7 +96,9 @@ const App = () => {
         newsApi.getAll()
       ]);
       console.log('[DEBUG] Domains data received:', domainsData);
-      setDomains(domainsData);
+      // Filter out any invalid domains
+      const validDomains = domainsData.filter(domain => domain && domain.id && domain.name);
+      setDomains(validDomains);
       setNews(newsData);
     } catch (error) {
       console.error('Error fetching public data:', error);
@@ -98,33 +110,77 @@ const App = () => {
     if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'domain_admin')) return;
     try {
       console.log('[DEBUG] Fetching admin data for user:', currentUser);
-      const [usersData, adminNewsData] = await Promise.all([
-        currentUser.role === 'super_admin' ? usersApi.getAll() : usersApi.getByDomain(),
-        newsApi.getAllAdmin()
-      ]);
 
+      // Fetch users based on role
+      const usersData = currentUser.role === 'super_admin'
+        ? await usersApi.getAll()
+        : await usersApi.getByDomain();
+
+      // Fetch news based on role
+      let newsData = [];
+      if (currentUser.role === 'super_admin') {
+        // Super admins get all admin news
+        newsData = await newsApi.getAllAdmin();
+      } else {
+        // Domain admins get all news in their domain plus archived and pending validation
+        console.log('[DEBUG] App: Fetching news data for domain admin:', currentUser);
+        const [allNewsData, archivedNewsData, pendingNewsData] = await Promise.all([
+          newsApi.getAll(), // All news in domain
+          newsApi.getArchived(), // Archived news in domain
+          newsApi.getPendingValidation() // Pending validation news in domain
+        ]);
+
+        console.log('[DEBUG] App: Received all news data:', allNewsData);
+        console.log('[DEBUG] App: Received archived news data:', archivedNewsData);
+        console.log('[DEBUG] App: Received pending validation news data:', pendingNewsData);
+
+        // Combine all news data
+        newsData = [...allNewsData, ...archivedNewsData, ...pendingNewsData];
+
+        console.log('[DEBUG] App: Combined news data:', newsData);
+
+        // Remove duplicates by ID
+        const seenIds = new Set();
+        newsData = newsData.filter(item => {
+          if (seenIds.has(item.id)) {
+            return false;
+          }
+          seenIds.add(item.id);
+          return true;
+        });
+
+        console.log('[DEBUG] App: Deduplicated news data:', newsData);
+      }
       console.log('[DEBUG] Users data received:', usersData);
-      console.log('[DEBUG] Admin news data received:', adminNewsData);
+      console.log('[DEBUG] News data received:', newsData);
 
-      setUsers(usersData);
-      setNews(adminNewsData);
+      // Filter out any invalid data
+      const validUsers = usersData.filter(user => user && user.id);
+      const validNews = newsData.filter(newsItem => newsItem && newsItem.id);
 
-      // Fetch audit logs for super admins
+      setUsers(validUsers);
+      setNews(validNews);
+
+      // Fetch audit logs for super admins only
       if (currentUser.role === 'super_admin') {
         const auditData = await auditApi.getAll();
         setAuditLogs(auditData);
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      showNotification('Failed to load admin data: ' + error.message, 'error');
+      // Only show error for super admins, domain admins might have limited access by design
+      if (currentUser.role === 'super_admin') {
+        showNotification('Failed to load admin data: ' + error.message, 'error');
+      }
     }
   }, [currentUser, showNotification]);
-
   const fetchContributorData = useCallback(async () => {
     if (!currentUser || currentUser.role !== 'contributor') return;
     try {
       const contributorNewsData = await newsApi.getContributorNews();
-      setNews(contributorNewsData);
+      // Filter out any invalid news items
+      const validNews = contributorNewsData.filter(newsItem => newsItem && newsItem.id);
+      setNews(validNews);
     } catch (error) {
       console.error('Error fetching contributor data:', error);
       showNotification('Failed to load contributor data: ' + error.message, 'error');
@@ -157,7 +213,8 @@ const App = () => {
             email: payload.email,
             username: payload.username,
             role: payload.role,
-            domain: payload.domain
+            domain_id: payload.domain,  // domain contains the domain ID
+            domain: payload.domain  // Also keep domain for compatibility with existing components
           });
         } else {
           localStorage.removeItem('accessToken');
@@ -167,7 +224,6 @@ const App = () => {
       }
     }
   }, []);
-
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -272,80 +328,58 @@ const App = () => {
     try {
       console.log('[DEBUG] handleSaveNews called with:', { newsData, isEditing, currentUser, domains });
       console.log('[DEBUG] Available domains:', domains.map(d => ({ id: d.id, name: d.name })));
-      let domainValue = newsData.domain;
-      
+      let domainValue = newsData.domain_id || newsData.domain;  // Use domain_id or domain fallback
+
       if (currentUser.role === 'contributor') {
         // For contributors, use their assigned domain
-        const userDomain = currentUser.domain;
-        console.log('[DEBUG] Contributor role - user domain:', userDomain);
-        
+        const userDomainId = currentUser.domain_id;  // Use domain_id instead of domain
+        console.log('[DEBUG] Contributor role - user domain ID:', userDomainId);
+
         // Check if contributor has a domain assigned
-        if (!userDomain) {
+        if (!userDomainId) {
           console.error('[ERROR] Contributor user has no domain assigned');
           showNotification('You must be assigned to a domain before creating or editing articles. Please contact your administrator.', 'error');
           return false;
         }
-        
-        // Try to find domain by name (case-insensitive and trimmed)
-        const domainObj = domains.find(d => 
-          d.name && userDomain && 
-          d.name.toString().trim().toLowerCase() === userDomain.toString().trim().toLowerCase()
-        );
-        domainValue = domainObj ? domainObj.id : null;
-        console.log('[DEBUG] Contributor role - found domain object:', domainObj, 'resolved domainValue:', domainValue);
-        
-        // If still null, try to get domain from existing article as fallback
-        if (domainValue === null && newsData.id) {
-          const existingNews = news.find(n => n.id === newsData.id);
-          if (existingNews) {
-            // Try to get domain ID from existing news item
-            domainValue = existingNews.domain_id || 
-                         (existingNews.domain && typeof existingNews.domain === 'number' ? existingNews.domain : null);
-            console.log('[DEBUG] Contributor role - using domain from existing article:', domainValue);
-            
-            // If we still don't have a domain ID, try to find it by domain name
-            if (domainValue === null && existingNews.domain && typeof existingNews.domain === 'string') {
-              const existingDomainObj = domains.find(d => 
-                d.name && existingNews.domain && 
-                d.name.toString().trim().toLowerCase() === existingNews.domain.toString().trim().toLowerCase()
-              );
-              domainValue = existingDomainObj ? existingDomainObj.id : null;
-              console.log('[DEBUG] Contributor role - found domain by existing article name:', existingDomainObj, 'domainValue:', domainValue);
-            }
-          }
+
+        // Use the contributor's assigned domain
+        domainValue = userDomainId;
+        console.log('[DEBUG] Using contributor\'s domain ID:', domainValue);
+      } else if ((currentUser.role === 'domain_admin' || currentUser.role === 'super_admin') && !isEditing) {
+        // For admins creating new articles, ensure domain is selected
+        if (!domainValue) {
+          showNotification('Please select a domain for this article', 'error');
+          return false;
         }
-      } else if (typeof newsData.domain === 'string') {
-        // For admins, try to find domain by name
-        const domainObj = domains.find(d => 
-          d.name && newsData.domain && 
-          d.name.toString().trim().toLowerCase() === newsData.domain.toString().trim().toLowerCase()
-        );
-        domainValue = domainObj ? domainObj.id : newsData.domain;
-        console.log('[DEBUG] String domain - resolved domainValue:', domainValue);
+        console.log('[DEBUG] Admin creating article with domain ID:', domainValue);
       }
 
-      // Validate that we have a domain
-      if (domainValue === null || domainValue === undefined) {
-        console.error('[ERROR] No valid domain found for news article');
-        showNotification('Unable to determine article domain. Please contact administrator.', 'error');
-        return false;
-      }
+      // Prepare data for API call
+      const newsPayload = {
+        title: newsData.title,
+        content: newsData.content,
+        domain_id: domainValue  // Use domain_id instead of domain
+      };
 
-      const payload = { ...newsData, author: currentUser.username, domain: domainValue };
-      console.log('[DEBUG] Sending payload:', payload);
+      console.log('[DEBUG] Sending news payload:', newsPayload);
 
       if (isEditing) {
-        await newsApi.update(newsData.id, payload);
-        showNotification('News updated', 'success');
+        await newsApi.update(newsData.id, newsPayload);
+        showNotification('Article updated', 'success');
       } else {
-        await newsApi.create(payload);
-        showNotification('News added', 'success');
+        await newsApi.create(newsPayload);
+        showNotification('Article created', 'success');
       }
       fetchData();
       return true;
     } catch (error) {
-      console.error('[ERROR] handleSaveNews:', error);
-      showNotification(error.message || 'Error saving news', 'error');
+      console.error('[DEBUG] Error in handleSaveNews:', error);
+      if (error.response) {
+        console.error('[DEBUG] Error response:', error.response);
+        showNotification(`Error saving article: ${error.response.data?.error || error.response.statusText || error.message}`, 'error');
+      } else {
+        showNotification(error.message || 'Error saving article', 'error');
+      }
       return false;
     }
   };
@@ -397,8 +431,63 @@ const App = () => {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
-      const updatedUser = await usersApi.update(currentUser.id, profileData);
-      setCurrentUser(prev => ({ ...prev, username: updatedUser.username, email: updatedUser.email }));
+      // Only send fields that have actually changed
+      const userDataToSend = {};
+      const originalUserData = {
+        id: currentUser?.id,
+        username: currentUser?.username,
+        email: currentUser?.email,
+        role: currentUser?.role,
+        domain: currentUser?.domain
+      };
+
+      // Compare each field and only include changed ones
+      if (profileData.username !== originalUserData.username) {
+        userDataToSend.username = profileData.username;
+      }
+
+      if (profileData.email !== originalUserData.email) {
+        userDataToSend.email = profileData.email;
+      }
+
+      // Only include password if it's not empty (indicating user wants to change it)
+      if (profileData.password && profileData.password.trim() !== '') {
+        userDataToSend.password = profileData.password;
+      }
+
+      // Only include domain_id for roles that should have domain assignments
+      if (currentUser.role === 'contributor' || currentUser.role === 'domain_admin') {
+        // Only include domain if it's actually changing
+        if (profileData.domain !== originalUserData.domain) {
+          // If user had no domain and still has no domain, don't send domain field
+          if (originalUserData.domain === null && profileData.domain === null) {
+            // Don't include domain field
+          } else if (profileData.domain === null || profileData.domain === '') {
+            // If setting to null/empty, set domain_id to null
+            userDataToSend.domain_id = null;
+          } else {
+            // Map domain to domain_id for backend
+            userDataToSend.domain_id = profileData.domain;
+          }
+        }
+      }
+      // Don't include domain_id for super_admins or regular users as they typically don't have domain assignments
+
+      // If no fields have changed, show a message and return
+      if (Object.keys(userDataToSend).length === 0) {
+        showNotification('No changes to save', 'info');
+        setShowProfile(false);
+        return;
+      }
+
+      console.log('[DEBUG] Sending profile update with:', userDataToSend);
+
+      const updatedUser = await usersApi.update(currentUser.id, userDataToSend);
+      setCurrentUser(prev => ({
+        ...prev,
+        username: updatedUser.username,
+        email: updatedUser.email
+      }));
       showNotification('Profile updated', 'success');
       setShowProfile(false);
     } catch (error) {
@@ -490,6 +579,7 @@ const App = () => {
             onDeleteNews={handleDeleteNews}
             onArchiveNews={handleArchiveNews}
             onUnarchiveNews={handleUnarchiveNews}
+            showNotification={showNotification}
           />
         )}
 
@@ -508,6 +598,7 @@ const App = () => {
             availableColors={availableColors}
             domainColors={domainColors}
             auditLogs={auditLogs}
+            showNotification={showNotification}
           />
         )}
       </main>
@@ -530,6 +621,7 @@ const App = () => {
         </div>
         <div className="footer-bottom">
           <p>&copy; {new Date().getFullYear()} Alenia Consulting. All rights reserved.</p>
+          <p className="text-xs text-tertiary">Version 1.4.0</p>
         </div>
       </footer>
 

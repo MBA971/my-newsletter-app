@@ -1,4 +1,5 @@
 import pool from '../utils/database.js';
+import { createIndexes } from './indexes.js';
 
 // Create tables if they don't exist
 export const createTables = async () => {
@@ -82,6 +83,10 @@ export const createTables = async () => {
     `);
 
         console.log('Tables created successfully');
+
+        // Create indexes after tables are created
+        await createIndexes();
+
     } catch (err) {
         console.error('Error creating tables:', err);
         throw err;

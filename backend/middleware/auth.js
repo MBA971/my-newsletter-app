@@ -5,32 +5,21 @@ const { secret: JWT_SECRET, refreshSecret: JWT_REFRESH_SECRET, accessExpiration,
 
 // Middleware to authenticate JWT token
 export const authenticateToken = (req, res, next) => {
-    console.log('[DEBUG] authenticateToken called');
-    console.log('[DEBUG] Request headers:', req.headers);
-    console.log('[DEBUG] Request cookies:', req.cookies);
-    
     // Try to get token from cookie first, then from Authorization header
     const token = req.cookies?.accessToken || req.headers['authorization']?.split(' ')[1];
-    
-    console.log('[DEBUG] Token:', token);
 
     if (!token) {
-        console.log('[DEBUG] No token found, returning 401');
         return res.status(401).json({ error: 'Access token required' });
     }
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        console.log('[DEBUG] Token decoded:', decoded);
         req.user = decoded;
         next();
     } catch (error) {
-        console.log('[DEBUG] Token verification failed:', error);
         if (error.name === 'TokenExpiredError') {
-            console.log('[DEBUG] Token expired, returning 401');
             return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
         }
-        console.log('[DEBUG] Invalid token, returning 403');
         return res.status(403).json({ error: 'Invalid token' });
     }
 };
@@ -82,16 +71,16 @@ export const checkDomainAccess = (req, res, next) => {
 
     // Domain admins can access their own domain
     if (req.user.role === 'domain_admin') {
-        // Get the user's domain from the database
-        // For now, we'll allow domain admins to access their assigned domain
-        // In a more complete implementation, we might want to check the specific domain
+        // For domain admins, we'll allow access to their assigned domain
+        // The domain ID is stored in the JWT token
         return next();
     }
 
     // Contributors can only access their own domain
     if (req.user.role === 'contributor') {
-        const requestedDomain = req.body.domain || req.params.domain;
+        const requestedDomain = req.body.domain_id || req.params.domain_id || req.query.domain_id;
 
+        // If a specific domain is requested and it's not the user's domain, deny access
         if (requestedDomain && requestedDomain !== req.user.domain) {
             return res.status(403).json({
                 error: 'You can only manage content in your assigned domain',
@@ -111,7 +100,7 @@ export const generateAccessToken = (user) => {
         email: user.email,
         username: user.username,
         role: user.role,
-        domain: user.domain
+        domain: user.domain_id !== undefined ? user.domain_id : user.domain
     };
 
     return jwt.sign(payload, JWT_SECRET, { expiresIn: accessExpiration });

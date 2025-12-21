@@ -2,20 +2,23 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { X, FileText, Heading, Briefcase, AlignLeft } from 'lucide-react';
 
 const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, currentUser, domains }) => {
+    // Early return if not showing
     if (!show) return null;
+    
+    console.log('[DEBUG] NewsModal received props:', { show, newsData, isEditing, currentUser, domains });
 
     // Character counter state
-    const [charCount, setCharCount] = useState(newsData.content ? newsData.content.length : 0);
+    const [charCount, setCharCount] = useState(newsData?.content ? newsData.content.length : 0);
     const MAX_CHARS = 5000;
 
     // Update character count when content changes
     useEffect(() => {
-        setCharCount(newsData.content ? newsData.content.length : 0);
-    }, [newsData.content]);
+        setCharCount(newsData?.content ? newsData.content.length : 0);
+    }, [newsData?.content]);
 
     const domainOptions = useMemo(() => {
         if (!domains || !Array.isArray(domains)) return [];
-        return domains;
+        return domains.filter(d => d && d.id && d.name); // Filter out invalid domains
     }, [domains]);
 
     const getDomainNameById = useMemo(() => (domainId) => {
@@ -33,13 +36,13 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
     }, [domainOptions]);
 
     const selectedDomainName = useMemo(() => {
-        if (currentUser.role !== 'super_admin' && currentUser.role !== 'domain_admin') return '';
-        if (typeof newsData.domain === 'string' && domainOptions.some(d => d.name === newsData.domain)) {
+        if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'domain_admin')) return '';
+        if (typeof newsData?.domain === 'string' && domainOptions.some(d => d.name === newsData.domain)) {
             return newsData.domain;
         } else {
-            return getDomainNameById(newsData.domain);
+            return getDomainNameById(newsData?.domain);
         }
-    }, [newsData.domain, getDomainNameById, currentUser.role, domainOptions]);
+    }, [newsData?.domain, getDomainNameById, currentUser?.role, domainOptions]);
 
     const handleDomainChange = (e) => {
         const domainName = e.target.value;
@@ -54,6 +57,11 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
             setNewsData({ ...newsData, content });
         }
     };
+
+    // Defensive check for required props
+    if (!show || !onClose || !onSave || !setNewsData || !currentUser) {
+        return null;
+    }
 
     return (
         <div className="modal-overlay glass-dark" onClick={onClose}>
@@ -80,7 +88,7 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                             <Heading className="input-icon" size={18} />
                             <input
                                 type="text"
-                                value={newsData.title || ''}
+                                value={newsData?.title || ''}
                                 onChange={e => setNewsData({ ...newsData, title: e.target.value })}
                                 className="form-input glass pl-10 h-11"
                                 required
@@ -109,12 +117,49 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                         </div>
                     )}
 
+                    {currentUser.role === 'contributor' && (
+                        <div className="form-group">
+                            <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Target Domain</label>
+                            <div className="input-with-icon">
+                                <Briefcase className="input-icon" size={18} />
+                                <input
+                                    type="text"
+                                    value={(() => {
+                                        // If we're editing and have the original domain, show it
+                                        if (isEditing && newsData?.domain) {
+                                            // If newsData.domain is a number (ID), try to find the domain name
+                                            if (typeof newsData.domain === 'number') {
+                                                const domainObj = domainOptions.find(d => d.id === newsData.domain);
+                                                return domainObj ? domainObj.name : (currentUser.domain || 'Unknown Domain');
+                                            }
+                                            // If newsData.domain is a string, use it directly
+                                            if (typeof newsData.domain === 'string') {
+                                                return newsData.domain;
+                                            }
+                                            return currentUser.domain || 'Unknown Domain';
+                                        }
+                                        // For new articles, show the contributor's assigned domain
+                                        return currentUser.domain || 'No domain assigned';
+                                    })()}
+                                    className="form-input glass pl-10 h-11 bg-gray-100 cursor-not-allowed"
+                                    readOnly
+                                    placeholder="Domain assigned by admin"
+                                />
+                            </div>
+                            {isEditing && newsData?.domain && typeof newsData.domain === 'number' && !domainOptions.find(d => d.id === newsData.domain) && (
+                                <p className="text-xs text-error-500 mt-1">
+                                    Warning: Article domain ID does not match any existing domain.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     <div className="form-group">
                         <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Content</label>
                         <div className="relative">
                             <AlignLeft className="absolute top-3 left-3 text-tertiary" size={18} />
                             <textarea
-                                value={newsData.content || ''}
+                                value={newsData?.content || ''}
                                 onChange={handleContentChange}
                                 className="form-textarea glass pl-10 pt-3 min-h-[200px]"
                                 required
@@ -138,10 +183,10 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                         <button type="button" onClick={onClose} className="btn btn-ghost glass h-11 px-6">
                             Discard
                         </button>
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             className="btn btn-success h-11 px-8 shadow-success font-bold"
-                            disabled={charCount > MAX_CHARS}
+                            disabled={charCount > MAX_CHARS || (currentUser.role === 'contributor' && !currentUser.domain)}
                         >
                             {isEditing ? 'Update Article' : 'Publish News'}
                         </button>

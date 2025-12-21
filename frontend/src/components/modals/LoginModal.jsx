@@ -54,7 +54,7 @@ const LoginModal = ({ show, onClose, onLogin, loginForm, setLoginForm }) => {
 
                     <div className="text-center mt-6">
                         <span className="text-xs text-tertiary flex items-center justify-center gap-1">
-                            <Info size={12} /> Version 1.2.2
+                            <Info size={12} /> Version 1.4.0
                         </span>
                     </div>
                 </form>

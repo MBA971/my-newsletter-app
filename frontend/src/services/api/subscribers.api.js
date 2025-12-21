@@ -1,10 +1,19 @@
 // Handle Docker vs Localhost resolution
 let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
 
-// If running in browser and URL contains '://backend' (docker service name), replace with localhost:3002
+// If running in browser and URL contains Docker service names, replace with localhost
 // This fixes the issue where docker-compose sets VITE_API_URL=http://backend:3002 but browser needs localhost:3002
-if (typeof window !== 'undefined' && apiUrl.includes('://backend')) {
-    apiUrl = apiUrl.replace('://backend:', '://localhost:').replace('://backend', '://localhost:3002');
+if (typeof window !== 'undefined') {
+    // Replace various Docker service names with localhost
+    if (apiUrl.includes('://backend')) {
+        apiUrl = apiUrl.replace('://backend:', '://localhost:').replace('://backend', '://localhost:3002');
+    } else if (apiUrl.includes('://newsletter_backend')) {
+        apiUrl = apiUrl.replace('://newsletter_backend:', '://localhost:').replace('://newsletter_backend', '://localhost:3002');
+    } else if (apiUrl.includes('://newsletter-backend')) {
+        apiUrl = apiUrl.replace('://newsletter-backend:', '://localhost:').replace('://newsletter-backend', '://localhost:3002');
+    } else if (apiUrl.includes('://my-newsletter-app-backend')) {
+        apiUrl = apiUrl.replace('://my-newsletter-app-backend:', '://localhost:').replace('://my-newsletter-app-backend', '://localhost:3002');
+    }
 }
 
 const API_URL = apiUrl;

@@ -1,12 +1,16 @@
-import React, { useMemo } from 'react';
-import { X, User, Mail, Shield, Lock, Briefcase } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, User, Mail, Shield, Lock, Briefcase, Paintbrush } from 'lucide-react';
+import ThemeSelector from '../ui/ThemeSelector';
+import { getCurrentTheme, setThemePreference, applyTheme } from '../../themes/modernThemes';
 
 const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, domains, isProfile, changePassword, setChangePassword }) => {
-    if (!show) return null;
+    const [currentTheme, setCurrentTheme] = useState(getCurrentTheme());
 
-    // Calculate selected domain ID safely
+    // Calculate selected domain ID safely - Moved before early return to ensure consistent hook order
     const selectedDomainId = useMemo(() => {
         if (!domains || !Array.isArray(domains) || !userData || userData.domain === undefined || userData.domain === null) {
+            // For contributors, if they don't have a domain assigned, we don't want to send null
+            // Instead, we should not include the domain field in the update request
             return '';
         }
 
@@ -21,9 +25,44 @@ const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, do
 
     const normalizedRole = userData?.role || 'user';
 
+    useEffect(() => {
+        // Apply theme when it changes
+        applyTheme(currentTheme);
+        // Update body class when theme changes
+        document.body.className = `theme-${currentTheme}`;
+        return () => {
+            document.body.classList.remove(`theme-${currentTheme}`);
+        };
+    }, [currentTheme]);
+
+    // Early return after all hooks are declared
+    if (!show) return null;
+
     const handleDomainChange = (e) => {
         const domainId = parseInt(e.target.value) || '';
         setUserData({ ...userData, domain: domainId });
+    };
+
+    const handleThemeChange = (themeName) => {
+        setCurrentTheme(themeName);
+        setThemePreference(themeName);
+    };
+
+    // Custom submit handler to handle domain properly for contributors
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        
+        // For contributors editing their own profile, if they don't have a domain assigned,
+        // we should not send the domain field at all to avoid validation errors
+        if (isProfile && normalizedRole === 'contributor' && (!userData.domain || userData.domain === null || userData.domain === '')) {
+            // Create a copy of userData without the domain field
+            const { domain, ...userDataWithoutDomain } = userData;
+            // Call onSave with the modified userData
+            onSave({ ...e, target: { ...e.target, userData: userDataWithoutDomain } });
+        } else {
+            // Normal save - pass the event directly to the parent handler
+            onSave(e);
+        }
     };
 
     return (
@@ -34,17 +73,30 @@ const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, do
                         <div className="w-10 h-10 rounded-xl bg-primary-500 text-white flex items-center justify-center shadow-lg">
                             {isProfile ? <User size={20} /> : <Shield size={20} />}
                         </div>
-                        <div>
+                        <div className="flex-1">
                             <h3 className="modal-title text-xl font-bold">{isProfile ? 'My Profile' : (isEditing ? 'Edit User' : 'Add New User')}</h3>
                             <p className="text-tertiary text-xs">Manage account information and permissions</p>
                         </div>
+                        <button onClick={onClose} className="btn-icon text-tertiary hover:text-primary-500 transition-colors">
+                            <X size={20} />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="btn-icon text-tertiary hover:text-primary-500 transition-colors">
-                        <X size={20} />
-                    </button>
                 </div>
 
-                <form onSubmit={onSave} className="modal-body space-y-4 pt-6">
+                <form onSubmit={handleSubmit} className="modal-body space-y-4 pt-6">
+                    {/* Theme Selector Section - Only show in profile mode */}
+                    {isProfile && (
+                        <div className="theme-section p-4 rounded-xl bg-gray-50">
+                            <ThemeSelector
+                                currentTheme={currentTheme}
+                                onThemeChange={(themeName) => {
+                                    setThemePreference(themeName);
+                                    setCurrentTheme(themeName);
+                                }}
+                            />
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="form-group col-span-2">
                             <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Username</label>

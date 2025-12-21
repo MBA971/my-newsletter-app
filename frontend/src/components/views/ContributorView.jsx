@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Newspaper, Trash2, Edit } from 'lucide-react';
 import NewsModal from '../modals/NewsModal';
 
-const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews, onArchiveNews, onUnarchiveNews }) => {
+const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews, onArchiveNews, onUnarchiveNews, showNotification }) => {
     // State for modal
     const [showModal, setShowModal] = useState(false);
     const [editingNews, setEditingNews] = useState(null);
@@ -10,29 +10,46 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
 
     // Filter news for this contributor - Optimized with useMemo
     const contributorNews = useMemo(() => {
+        if (!news || !Array.isArray(news) || !currentUser) return [];
         return news.filter(item => item.author_id === currentUser.id);
-    }, [news, currentUser.id]);
+    }, [news, currentUser]);
 
     // Create domainColors map - Optimized with useMemo
     const domainColors = useMemo(() => {
-        return domains.reduce((acc, d) => ({ ...acc, [d.name]: d.color }), {});
+        if (!domains || !Array.isArray(domains)) return {};
+        return domains.reduce((acc, d) => {
+            if (d && d.name && d.color) {
+                acc[d.name] = d.color;
+            }
+            return acc;
+        }, {});
     }, [domains]);
 
     const getDomainColor = (domainName) => {
+        if (!domainName) return '#3b82f6';
         return domainColors[domainName] || '#3b82f6';
     };
 
     // Get domain name by domain value (could be ID or name) - Optimized
     const getDomainName = useMemo(() => (domainValue) => {
-        if (typeof domainValue === 'number') {
-            const domain = domains.find(d => d.id === domainValue);
+        // If the domainValue is already a string (domain name), return it directly
+        if (typeof domainValue === 'string') {
+            return domainValue;
+        }
+        
+        // If the domainValue is a number (domain ID), try to find the domain name
+        if (typeof domainValue === 'number' && domains && Array.isArray(domains)) {
+            const domain = domains.find(d => d && d.id === domainValue);
             return domain ? domain.name : '';
         }
-        return typeof domainValue === 'string' ? domainValue : '';
+        
+        // For any other case, return empty string
+        return '';
     }, [domains]);
 
     // Function to handle archive/unarchive
     const handleArchiveToggle = async (item) => {
+        if (!item || !item.id) return;
         if (item.archived) {
             await onUnarchiveNews(item.id);
         } else {
@@ -42,21 +59,45 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
 
     const handleAddNew = () => {
         // Check if contributor has a domain assigned
-        if (!currentUser.domain) {
-            alert('You must be assigned to a domain before creating articles. Please contact your administrator.');
+        if (!currentUser || !currentUser.domain) {
+            // Use the notification system instead of alert
+            if (showNotification) {
+                showNotification('You must be assigned to a domain before creating articles. Please contact your administrator.', 'error');
+            }
             return;
         }
-        
-        setFormData({ title: '', content: '', domain: currentUser.domain });
+
+        // For contributors, automatically set their domain; for super admins, allow selection
+        const initialDomain = currentUser.role === 'contributor' ? currentUser.domain : '';
+        setFormData({ title: '', content: '', domain: initialDomain });
         setEditingNews(null);
         setShowModal(true);
     };
 
     const handleEdit = (item) => {
+        if (!item) return;
+
+        // For contributors, they can only edit articles in their domain
+        // So we ensure the domain is their assigned domain for saving purposes,
+        // but we preserve the original domain information for display
+        let domainValue;
+        let displayDomain;        
+        if (currentUser.role === 'contributor') {
+            // Use the user's domain for saving (security)
+            domainValue = currentUser.domain || '';
+            // Preserve the original article's domain for display
+            // Since the backend sends domain as a name, we can use it directly
+            displayDomain = item.domain || '';
+        } else {
+            // For admins, use the article's domain for both saving and display
+            domainValue = item.domain || '';
+            displayDomain = item.domain || '';
+        }
+
         setFormData({
-            title: item.title,
-            content: item.content,
-            domain: item.domain
+            title: item.title || '',
+            content: item.content || '',
+            domain: domainValue
         });
         setEditingNews(item);
         setShowModal(true);
@@ -66,13 +107,18 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
         e.preventDefault();
 
         // Check if contributor has a domain assigned
-        if (currentUser.role === 'contributor' && !currentUser.domain) {
-            alert('You must be assigned to a domain before creating or editing articles. Please contact your administrator.');
+        if (currentUser.role === 'contributor' && (!currentUser || !currentUser.domain)) {
+            // Use the notification system instead of alert
+            if (showNotification) {
+                showNotification('You must be assigned to a domain before creating or editing articles. Please contact your administrator.', 'error');
+            }
             return;
         }
 
+        // Prepare the news item for submission
         const newsItem = {
             ...formData,
+            // For contributors, always use their assigned domain; for admins, use the selected domain
             domain: currentUser.role === 'contributor' ? currentUser.domain : formData.domain,
             author: currentUser.username
         };
@@ -93,6 +139,11 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
         setFormData({ title: '', content: '' });
     };
 
+    // Defensive check for required props
+    if (!news || !domains || !currentUser) {
+        return <div>Loading...</div>;
+    }
+
     return (
         <div className="animate-fadeIn">
             <div className="section-header">
@@ -100,8 +151,8 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                 <button
                     onClick={handleAddNew}
                     className="btn btn-success"
-                    disabled={!currentUser.domain}
-                    title={!currentUser.domain ? "You must be assigned to a domain to create articles" : ""}
+                    disabled={currentUser.role === 'contributor' && !currentUser.domain}
+                    title={currentUser.role === 'contributor' && !currentUser.domain ? "You must be assigned to a domain to create articles" : ""}
                 >
                     <Plus size={20} />
                     Add Article
@@ -140,7 +191,7 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                                             color: getDomainColor(getDomainName(item.domain))
                                         }}
                                     >
-                                        {getDomainName(item.domain)}
+                                        {getDomainName(item.domain) || 'Unknown Domain'}
                                     </span>
                                     {item.pending_validation && (
                                         <span className="badge badge-warning">PENDING_VALIDATION</span>
@@ -150,7 +201,7 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                                     )}
                                 </div>
                                 <span className="text-sm text-tertiary">
-                                    {new Date(item.date).toLocaleDateString()}
+                                    {item.date ? new Date(item.date).toLocaleDateString() : 'Unknown Date'}
                                 </span>
                             </div>
 
@@ -159,15 +210,15 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                                 className="news-card-title" 
                                 style={item.archived ? { textDecoration: 'line-through', opacity: 0.7 } : {}}
                             >
-                                {item.title}
+                                {item.title || 'Untitled Article'}
                             </h3>
 
                             {/* Content preview - show more content with better truncation */}
                             <div className="news-card-content">
                                 <p className="m-0">
-                                    {item.content.length > 250 ? 
+                                    {item.content && item.content.length > 250 ? 
                                         `${item.content.substring(0, 250)}...` : 
-                                        item.content}
+                                        item.content || 'No content'}
                                 </p>
                             </div>
 
@@ -183,8 +234,7 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                                         onClick={() => handleEdit(item)}
                                         className="news-card-action-btn"
                                         title={item.archived ? "Cannot edit archived article" : "Edit article"}
-                                        disabled={item.archived}
-                                    >
+                                        disabled={item.archived}                                    >
                                         <Edit size={16} />
                                     </button>
                                     <button
@@ -219,7 +269,7 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                                         <button
                                             onClick={() => onDeleteNews(item.id)}
                                             className="news-card-action-btn"
-                                            title="Delete article"
+                                            title="Archive article"
                                         >
                                             <Trash2 size={16} />
                                         </button>
@@ -231,17 +281,18 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
                 </div>
             )}
 
-            <NewsModal
-                show={showModal}
-                onClose={closeModal}
-                onSave={handleSave}
-                newsData={formData}
-                setNewsData={setFormData}
-                isEditing={!!editingNews}
-                currentUser={currentUser}
-                domainColors={domainColors}
-                domains={domains}
-            />
+            {showModal && (
+                <NewsModal
+                    show={showModal}
+                    onClose={closeModal}
+                    onSave={handleSave}
+                    newsData={formData}
+                    setNewsData={setFormData}
+                    isEditing={!!editingNews}
+                    currentUser={currentUser}
+                    domains={domains}
+                />
+            )}
         </div>
     );
 };

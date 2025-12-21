@@ -125,7 +125,7 @@ async function reinitializeDatabase() {
         console.log('  👤 Inserting users...');
         for (const user of users) {
             await pool.query(
-                'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5)',
+                'INSERT INTO users (username, email, password, role, domain_id) VALUES ($1, $2, $3, $4, $5)',
                 [user.username, user.email, user.password, user.role, user.domain]
             );
         }
