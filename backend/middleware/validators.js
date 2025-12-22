@@ -54,16 +54,13 @@ export const validateUserCreation = [
     body('role')
         .isIn(['user', 'contributor', 'domain_admin', 'super_admin'])
         .withMessage('Role must be one of: user, contributor, domain_admin, super_admin'),
-    body('domain')
+    body('domain_id')
         .optional()
         .custom((value, { req }) => {
             // Domain is only required for contributors
             if (req.body.role === 'contributor') {
-                if (!value || value.toString().trim() === '') {
+                if (value === undefined || value === null || value.toString().trim() === '') {
                     throw new Error('Domain is required for contributors');
-                }
-                if (value.toString().trim().length < 1 || value.toString().trim().length > 50) {
-                    throw new Error('Domain must be between 1 and 50 characters');
                 }
             }
             return true;
@@ -103,24 +100,14 @@ export const validateUserUpdate = [
         .optional()
         .isIn(['user', 'contributor', 'domain_admin', 'super_admin'])
         .withMessage('Role must be one of: user, contributor, domain_admin, super_admin'),
-    body('domain')
+    body('domain_id')
         .optional()
         .custom((value, { req }) => {
             // Domain is only required for contributors
-            // We need to check both the new role (if provided) and the existing role
             const newRole = req.body.role;
-            // If we're not updating the role, we need to get the existing user's role
-            // This would require a database lookup, so we'll just validate based on what's provided
             if (newRole === 'contributor') {
-                if (value === undefined || value === null) {
-                    // If domain is not provided but required, that's handled in the route logic
-                    return true;
-                }
-                if (value.toString().trim() === '') {
+                if (value === undefined || value === null || value.toString().trim() === '') {
                     throw new Error('Domain is required for contributors');
-                }
-                if (value.toString().trim().length < 1 || value.toString().trim().length > 50) {
-                    throw new Error('Domain must be between 1 and 50 characters');
                 }
             }
             return true;
@@ -136,14 +123,14 @@ export const validateNewsCreation = [
         .withMessage('Title is required')
         .isLength({ min: 5, max: 200 })
         .withMessage('Title must be between 5 and 200 characters'),
-        // Removed .escape() to prevent HTML entity encoding
+    // Removed .escape() to prevent HTML entity encoding
     body('content')
         .trim()
         .notEmpty()
         .withMessage('Content is required')
         .isLength({ min: 10, max: 5000 })
         .withMessage('Content must be between 10 and 5000 characters'),
-        // Removed .escape() to prevent HTML entity encoding
+    // Removed .escape() to prevent HTML entity encoding
     body('domain_id')
         .custom((value, { req }) => {
             // For contributors, domain is required and will be set by the system
@@ -152,10 +139,10 @@ export const validateNewsCreation = [
                 if (!value && value !== 0) {
                     throw new Error('Domain is required for admin-created articles');
                 }
-                
+
                 // Convert to integer if it's a string
                 const domainId = parseInt(value);
-                
+
                 // Check if it's a valid integer
                 if (isNaN(domainId) || domainId <= 0) {
                     throw new Error('Domain must be a valid positive integer');
@@ -199,6 +186,6 @@ export const validateSubscriber = [
         .withMessage('Name is required')
         .isLength({ min: 2, max: 100 })
         .withMessage('Name must be between 2 and 100 characters'),
-        // Removed .escape() to prevent HTML entity encoding
+    // Removed .escape() to prevent HTML entity encoding
     handleValidationErrors
 ];

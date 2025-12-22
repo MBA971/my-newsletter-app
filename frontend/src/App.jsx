@@ -96,7 +96,6 @@ const App = () => {
         domainsApi.getAll(),
         newsApi.getAll()
       ]);
-      console.log('[DEBUG] Domains data received:', domainsData);
       // Filter out any invalid domains
       const validDomains = domainsData.filter(domain => domain && domain.id && domain.name);
       setDomains(validDomains);
@@ -110,8 +109,6 @@ const App = () => {
   const fetchAdminData = useCallback(async () => {
     if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'domain_admin')) return;
     try {
-      console.log('[DEBUG] Fetching admin data for user:', currentUser);
-
       // Fetch users based on role
       const usersData = currentUser.role === 'super_admin'
         ? await usersApi.getAll()
@@ -121,12 +118,7 @@ const App = () => {
       // Fetch news based on role
       // Use getAllAdmin for both super_admin and domain_admin
       // The backend controller automatically handles domain filtering for domain_admin
-      console.log('[DEBUG] App: Fetching admin news data for:', currentUser.role);
       const newsData = await newsApi.getAllAdmin();
-
-      console.log('[DEBUG] App: Received admin news data:', newsData);
-      console.log('[DEBUG] Users data received:', usersData);
-      console.log('[DEBUG] News data received:', newsData);
 
       // Filter out any invalid data
       const validUsers = usersData.filter(user => user && user.id);
@@ -202,11 +194,6 @@ const App = () => {
     fetchData();
   }, [fetchData]);
 
-  // Debug: Log users state changes
-  useEffect(() => {
-    console.log('[DEBUG] Users state updated:', users);
-  }, [users]);
-
   // Auth Handlers
   const handleLogin = async (loginData) => {
     // If no loginData was provided (shouldn't happen but just in case)
@@ -269,23 +256,28 @@ const App = () => {
   // User Handlers
   const handleSaveUser = async (userData, isEditing) => {
     try {
-      console.log('[DEBUG] Saving user data:', userData);
+      // Map domain to domain_id for consistency with backend
+      const userPayload = {
+        ...userData,
+        domain_id: userData.domain || userData.domain_id || null
+      };
+
+      // Clean up the payload - don't send 'domain' string field to backend
+      if (userPayload.domain) delete userPayload.domain;
+
       if (isEditing) {
-        const response = await usersApi.update(userData.id, userData);
-        console.log('[DEBUG] User update response:', response);
+        await usersApi.update(userData.id, userPayload);
         showNotification('User updated', 'success');
       } else {
-        await usersApi.create(userData);
+        await usersApi.create(userPayload);
         showNotification('User added', 'success');
       }
       fetchData();
       return true;
     } catch (error) {
-      console.error('[DEBUG] Error saving user:', error);
       // Try to get more detailed error information
       if (error.response) {
-        console.error('[DEBUG] Error response:', error.response);
-        showNotification(`Error saving user: ${error.response.statusText || error.message}`, 'error');
+        showNotification(`Error saving user: ${error.response.data?.error || error.response.statusText || error.message}`, 'error');
       } else {
         showNotification(error.message || 'Error saving user', 'error');
       }
@@ -304,49 +296,26 @@ const App = () => {
   };
 
   // News Handlers
-  const handleSaveNews = async (e, newsData) => {
+  const handleSaveNews = async (newsData, isEditing) => {
     try {
-      console.log('[DEBUG] handleSaveNews called with:', { newsData, isEditing, currentUser, domains });
-      console.log('[DEBUG] Available domains:', domains.map(d => ({ id: d.id, name: d.name })));
-      let domainValue = newsData.domain_id || newsData.domain;  // Use domain_id or domain fallback
+      let domainValue = newsData.domain_id;  // Use domain_id consistently
 
-      if (currentUser.role === 'contributor') {
-        // For contributors, use their assigned domain
-        const userDomainId = currentUser.domain_id;  // Use domain_id instead of domain
-        console.log('[DEBUG] Contributor role - user domain ID:', userDomainId);
-
-        // Check if contributor has a domain assigned
-        if (!userDomainId) {
-          console.error('[ERROR] Contributor user has no domain assigned');
-          showNotification('You must be assigned to a domain before creating or editing articles. Please contact your administrator.', 'error');
-          return false;
-        }
-
-        // Use the contributor's assigned domain
-        domainValue = userDomainId;
-        console.log('[DEBUG] Using contributor\'s domain ID:', domainValue);
-      } else if (currentUser.role === 'domain_admin') {
-        // For domain admins, they should only create/edit articles in their assigned domain
+      if (currentUser.role === 'contributor' || currentUser.role === 'domain_admin') {
+        // For contributors and domain admins, ensure they use their assigned domain
         const userDomainId = currentUser.domain_id;
-        console.log('[DEBUG] Domain admin role - user domain ID:', userDomainId);
 
-        // Check if domain admin has a domain assigned
         if (!userDomainId) {
-          console.error('[ERROR] Domain admin user has no domain assigned');
-          showNotification('You must be assigned to a domain before creating or editing articles. Please contact your administrator.', 'error');
+          showNotification('You must be assigned to a domain before creating or editing articles.', 'error');
           return false;
         }
 
-        // Use the domain admin's assigned domain
         domainValue = userDomainId;
-        console.log('[DEBUG] Using domain admin\'s domain ID:', domainValue);
       } else if (currentUser.role === 'super_admin' && !isEditing) {
         // For super admins creating new articles, ensure domain is selected
         if (!domainValue) {
           showNotification('Please select a domain for this article', 'error');
           return false;
         }
-        console.log('[DEBUG] Super admin creating article with domain ID:', domainValue);
       }
 
       // Prepare data for API call
@@ -444,7 +413,7 @@ const App = () => {
 
       // Compare each field and only include changed ones
       const finalUserData = {};
-      
+
       if (userDataToSend.username !== originalUserData.username) {
         finalUserData.username = userDataToSend.username;
       }
@@ -479,7 +448,7 @@ const App = () => {
         return;
       }
 
-      console.log('[DEBUG] Sending profile update with:', finalUserData);
+      console.log('Sending profile update with:', finalUserData);
 
       const updatedUser = await usersApi.update(currentUser.id, finalUserData);
       setCurrentUser(prev => ({
@@ -574,7 +543,6 @@ const App = () => {
             news={news}
             domains={domains}
             currentUser={currentUser}
-            onSaveNews={handleSaveNews}
             onDeleteNews={handleDeleteNews}
             onArchiveNews={handleArchiveNews}
             onUnarchiveNews={handleUnarchiveNews}

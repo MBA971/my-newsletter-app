@@ -99,7 +99,7 @@ export const news = {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
                 // Extract validation error messages
-                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                const messages = errorData.details.map(detail => detail.message || detail.msg).join(', ');
                 throw new Error(messages || 'Failed to create news');
             }
             throw new Error('Failed to create news');
@@ -109,7 +109,6 @@ export const news = {
     },
 
     update: async (id, newsData) => {
-        console.log('[DEBUG] newsApi.update called with:', { id, newsData });
         const response = await fetch(`${API_URL}/api/news/${id}`, {
             method: 'PUT',
             headers: getHeaders(true),
@@ -118,7 +117,6 @@ export const news = {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.log('[DEBUG] Update response not ok:', { status: response.status, errorText });
 
             let errorData;
             try {
@@ -129,7 +127,7 @@ export const news = {
 
             if (errorData.details) {
                 // Extract validation error messages
-                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                const messages = errorData.details.map(detail => detail.message || detail.msg).join(', ');
                 throw new Error(messages || 'Failed to update news');
             }
             throw new Error(errorData.message || errorData.error || 'Failed to update news');
@@ -157,21 +155,27 @@ export const news = {
     },
 
     archive: async (id) => {
-        const response = await fetch(`${API_URL}/api/news/${id}/archive`, {
+        // Use the toggle-archive endpoint since separate archive/unarchive endpoints don't exist
+        const response = await fetch(`${API_URL}/api/news/${id}/toggle-archive`, {
             method: 'POST',
             headers: getHeaders(true),
         });
         if (!response.ok) throw new Error('Failed to archive news');
-        return response.json();
+        const result = await response.json();
+        // If the item was already archived, we might need to handle that case
+        return result;
     },
 
     unarchive: async (id) => {
-        const response = await fetch(`${API_URL}/api/news/${id}/unarchive`, {
+        // Use the toggle-archive endpoint since separate archive/unarchive endpoints don't exist
+        const response = await fetch(`${API_URL}/api/news/${id}/toggle-archive`, {
             method: 'POST',
             headers: getHeaders(true),
         });
         if (!response.ok) throw new Error('Failed to unarchive news');
-        return response.json();
+        const result = await response.json();
+        // If the item was already unarchived, we might need to handle that case
+        return result;
     },
 
     validate: async (id) => {

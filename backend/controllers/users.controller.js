@@ -10,17 +10,17 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 export const getUsersByDomain = asyncHandler(async (req, res) => {
   // For domain admins, get users in their assigned domain
   // For super admins, this endpoint might not be used or could be modified to accept a domain parameter
-  
+
   // Get the domain admin's assigned domain from their JWT token
-  const domainId = req.user.domain;
-  
+  const domainId = req.user.domain_id;
+
   console.log('[DEBUG] getUsersByDomain - Domain ID from JWT:', domainId);
-  
+
   if (!domainId) {
     console.log('[DEBUG] getUsersByDomain - No domain assigned to user');
     return res.status(400).json({ error: 'User not assigned to a domain' });
   }
-  
+
   // Get users in this domain (contributors and domain admins only)
   const users = await UserModel.findByDomain(domainId);
   console.log('[DEBUG] getUsersByDomain - Users found:', users);
@@ -35,6 +35,8 @@ export const createUser = asyncHandler(async (req, res) => {
 
 export const updateUser = asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
+  console.log(`[DEBUG] updateUser request - ID: ${id}, Body:`, JSON.stringify(req.body, null, 2));
+  console.log(`[DEBUG] updateUser auth - ReqUser: ${req.user.userId}, Role: ${req.user.role}`);
 
   // Validate ID
   if (isNaN(id)) {
@@ -46,7 +48,9 @@ export const updateUser = asyncHandler(async (req, res) => {
 
   let isAuthorized = false;
 
-  if (req.user.role === 'super_admin') {
+  console.log(`[AUTH DEBUG] isSelf: ${isSelf}, req.user.role: ${req.user.role}`);
+
+  if (req.user.role === 'super_admin' || req.user.role === 'admin') {
     isAuthorized = true;
   } else if (isSelf) {
     isAuthorized = true;
@@ -61,31 +65,43 @@ export const updateUser = asyncHandler(async (req, res) => {
       const requestingUserDomain = requestingUserResult.rows[0].domain_id;
       const targetUserDomain = targetUserResult.rows[0].domain_id;
 
-      isAuthorized = requestingUserDomain && targetUserDomain && requestingUserDomain === targetUserDomain;
+      // Ensure both are present and equal
+      isAuthorized = !!requestingUserDomain && !!targetUserDomain && requestingUserDomain === targetUserDomain;
+
+      if (!isAuthorized) {
+        console.log(`[AUTH DEBUG] Domain mismatch: Admin domain ${requestingUserDomain}, Target domain ${targetUserDomain}`);
+      }
+    } else {
+      console.log(`[AUTH DEBUG] User not found during permission check: ReqUser ${req.user.userId} found: ${requestingUserResult.rows.length > 0}, TargetUser ${id} found: ${targetUserResult.rows.length > 0}`);
     }
   }
 
   if (!isAuthorized) {
+    console.log(`[AUTH DEBUG] Authorization failed for user ${req.user.userId}`);
     return res.status(403).json({ error: 'Unauthorized to update this user' });
   }
 
   let { username, email, role, domain_id, password } = req.body;
 
   // Prevent privilege escalation: Non-super_admins cannot change role
-  if (req.user.role !== 'super_admin') {
+  if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
     role = req.user.role;
-  } else if (req.user.role === 'super_admin' && req.user.userId === id) {
-    // Super admin updating their own profile - keep role as super_admin to prevent privilege escalation
-    role = 'super_admin';
+  } else if ((req.user.role === 'super_admin' || req.user.role === 'admin') && req.user.userId === id) {
+    // Admin updating their own profile - keep their current role
+    role = req.user.role;
   }
 
   // Prepare update data
   const updateData = {
     username,
     email,
-    password, // This will be hashed in the model
     role
   };
+
+  // Only include password if it's provided and not empty
+  if (password && password.trim() !== '') {
+    updateData.password = password;
+  }
 
   // Only include domain_id in update if it's explicitly provided
   // For role-based considerations:

@@ -28,7 +28,7 @@ router.put('/:id', authenticateToken, requireContributor, validateNews, handleVa
 router.delete('/:id', authenticateToken, requireContributor, deleteNews); // Changed to archive for contributors, delete for admins
 router.post('/:id/grant-edit', authenticateToken, requireContributor, grantEditAccess);
 router.post('/:id/toggle-archive', authenticateToken, requireDomainAdmin, toggleArchiveNews); // Domain admin and super admin only
-router.post('/:id/validate', authenticateToken, requireDomainAdmin, validateNews, handleValidationErrors, controllerValidateNews); // Domain admin and super admin only
+router.post('/:id/validate', authenticateToken, requireDomainAdmin, controllerValidateNews); // Domain admin and super admin only
 // New route for liking articles (no authentication required for public likes)
 router.post('/:id/like', likeNews);
 

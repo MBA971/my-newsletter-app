@@ -63,7 +63,7 @@ export const users = {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
                 // Extract validation error messages
-                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                const messages = errorData.details.map(detail => detail.message || detail.msg).join(', ');
                 throw new Error(messages || 'Failed to create user');
             }
             throw new Error('Failed to create user');
@@ -76,7 +76,7 @@ export const users = {
         const headers = getHeaders(true);
         console.log('[DEBUG] Sending update request with headers:', headers);
         console.log('[DEBUG] Sending update request with body:', JSON.stringify(userData));
-        
+
         const response = await fetch(`${API_URL}/api/users/${id}`, {
             method: 'PUT',
             headers: headers,
@@ -87,7 +87,7 @@ export const users = {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
                 // Extract validation error messages
-                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                const messages = errorData.details.map(detail => detail.message || detail.msg).join(', ');
                 throw new Error(messages || 'Failed to update user');
             }
             throw new Error('Failed to update user');

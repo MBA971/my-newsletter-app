@@ -8,11 +8,13 @@ import { body, validationResult } from 'express-validator';
 export const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('❌ Validation errors:', errors.array());
     return res.status(400).json({
       error: 'Validation failed',
       details: errors.array().map(error => ({
-        field: error.param,
-        message: error.msg
+        field: error.path || error.param,
+        message: error.msg,
+        value: error.value
       }))
     });
   }
@@ -35,23 +37,36 @@ export const validateLogin = [
 // Validation rules for user registration/creation
 export const validateUser = [
   body('username')
+    .optional({ checkFalsy: true })
+    .trim()
     .isLength({ min: 3, max: 50 })
     .withMessage('Username must be between 3 and 50 characters')
     .matches(/^[a-zA-Z0-9_]+$/)
     .withMessage('Username can only contain letters, numbers, and underscores'),
   body('email')
+    .optional({ checkFalsy: true })
+    .trim()
     .isEmail()
-    .normalizeEmail()
     .withMessage('Please provide a valid email address')
+    .normalizeEmail()
     .isLength({ max: 100 })
     .withMessage('Email must not exceed 100 characters'),
   body('password')
+    .optional({ checkFalsy: true })
     .isLength({ min: 6, max: 128 })
     .withMessage('Password must be between 6 and 128 characters long'),
   body('role')
-    .optional()
+    .optional({ checkFalsy: true })
     .isIn(['user', 'contributor', 'domain_admin', 'super_admin'])
-    .withMessage('Role must be one of: user, contributor, domain_admin, super_admin')
+    .withMessage('Role must be one of: user, contributor, domain_admin, super_admin'),
+  body('domain_id')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '' || value === 'null') return true;
+      const parsed = parseInt(value);
+      if (!isNaN(parsed) && parsed > 0) return true;
+      throw new Error('Domain must be a valid integer ID');
+    })
 ];
 
 // Validation rules for domain creation/update
@@ -109,7 +124,7 @@ export const validateSubscriber = [
 // Sanitization utility for content
 export const sanitizeContent = (content) => {
   if (typeof content !== 'string') return content;
-  
+
   // Basic HTML sanitization - remove potentially dangerous tags
   return content
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')

@@ -237,12 +237,16 @@ async function resetAndSeedDatabase() {
 
         console.log('  📰 Inserting news articles...');
         for (const article of news) {
+            // Get author ID from username
+            const authorResult = await pool.query('SELECT id FROM users WHERE username = $1', [article.author]);
+            const authorId = authorResult.rows.length > 0 ? authorResult.rows[0].id : null;
+
             // Random date within last 30 days
             const randomDays = Math.floor(Math.random() * 30);
             await pool.query(
-                `INSERT INTO news (title, domain, content, author, date) 
+                `INSERT INTO news (title, domain_id, content, author_id, date) 
                  VALUES ($1, $2, $3, $4, CURRENT_DATE - CAST($5 AS INTEGER))`,
-                [article.title, article.domain, article.content, article.author, randomDays]
+                [article.title, article.domain, article.content, authorId, randomDays]
             );
         }
         console.log(`  ✅ ${news.length} articles inserted`);

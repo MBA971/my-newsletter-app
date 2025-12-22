@@ -42,7 +42,7 @@ export const updateDomain = asyncHandler(async (req, res) => {
 
   const { name, color } = req.body;
   const domain = await DomainModel.update(id, { name, color });
-  
+
   if (!domain) {
     return res.status(404).json({ error: 'Domain not found' });
   }
@@ -65,7 +65,7 @@ export const deleteDomain = asyncHandler(async (req, res) => {
   }
 
   // First delete associated news to avoid foreign key constraint violation
-  await pool.query('DELETE FROM news WHERE domain = $1', [id]);
+  await pool.query('DELETE FROM news WHERE domain_id = $1', [id]);
 
   // Then delete the domain
   const deleted = await DomainModel.delete(id);

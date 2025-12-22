@@ -1,35 +1,65 @@
-/**
- * Redis cache utility
- */
-
 import { createClient } from 'redis';
 import config from '../config/config.js';
+
+// Track connection status and last error log time
+let isConnected = false;
+let lastErrorLogTime = 0;
+const ERROR_LOG_THROTTLE = 60000; // Log error at most once per minute
 
 // Create Redis client
 const redisClient = createClient({
   url: config.redis.url,
-  retry_strategy: (times) => {
-    // Retry after 1, 2, 4, 8 seconds exponentially
-    return Math.min(times * 1000, 8000);
+  socket: {
+    reconnectStrategy: (retries) => {
+      // Exponential backoff with a cap of 30 seconds
+      const delay = Math.min(retries * 500, 30000);
+      return delay;
+    }
   }
 });
 
 // Handle Redis connection events
 redisClient.on('connect', () => {
   console.log('✅ Connected to Redis');
+  isConnected = true;
+});
+
+redisClient.on('ready', () => {
+  console.log('🚀 Redis client ready');
+  isConnected = true;
+});
+
+redisClient.on('end', () => {
+  console.log('🔌 Redis connection closed');
+  isConnected = false;
 });
 
 redisClient.on('error', (err) => {
-  console.error('❌ Redis Client Error:', err);
+  const now = Date.now();
+  if (now - lastErrorLogTime > ERROR_LOG_THROTTLE) {
+    console.warn('⚠️  Redis Client Status:', err.message || 'Connecting...');
+    lastErrorLogTime = now;
+  }
+  isConnected = false;
 });
 
-// Connect to Redis
-await redisClient.connect();
+// Connect to Redis (non-blocking)
+const connectRedis = async () => {
+  try {
+    await redisClient.connect();
+  } catch (err) {
+    // Connection errors are handled by the 'error' event listener above
+  }
+};
+
+connectRedis();
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\n shutting down gracefully...');
-  await redisClient.quit();
+  if (isConnected) {
+    console.log('\n shutting down gracefully...');
+    await redisClient.quit();
+  }
   process.exit(0);
 });
 
@@ -37,6 +67,7 @@ process.on('SIGINT', async () => {
 export const cache = {
   // Get value from cache
   get: async (key) => {
+    if (!isConnected) return null;
     try {
       const prefixedKey = config.redis.prefix + key;
       const value = await redisClient.get(prefixedKey);
@@ -49,6 +80,7 @@ export const cache = {
 
   // Set value in cache
   set: async (key, value, expiration = config.redis.ttl) => { // Use config TTL as default
+    if (!isConnected) return;
     try {
       const prefixedKey = config.redis.prefix + key;
       await redisClient.setEx(prefixedKey, expiration, JSON.stringify(value));
@@ -59,6 +91,7 @@ export const cache = {
 
   // Delete value from cache
   del: async (key) => {
+    if (!isConnected) return;
     try {
       const prefixedKey = config.redis.prefix + key;
       await redisClient.del(prefixedKey);
@@ -69,6 +102,7 @@ export const cache = {
 
   // Check if key exists in cache
   exists: async (key) => {
+    if (!isConnected) return false;
     try {
       const prefixedKey = config.redis.prefix + key;
       const result = await redisClient.exists(prefixedKey);
@@ -81,6 +115,7 @@ export const cache = {
 
   // Clear all cache
   flushAll: async () => {
+    if (!isConnected) return;
     try {
       await redisClient.flushAll();
     } catch (error) {

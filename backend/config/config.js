@@ -17,7 +17,7 @@ const config = {
         database: process.env.DB_NAME || 'newsletter_app',
         password: process.env.DB_PASSWORD || 'postgres',
         port: parseInt(process.env.DB_PORT || '5433'),
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false, // Enable SSL in production
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false, // Only enable SSL if explicitly requested
     },
     redis: {
         url: process.env.REDIS_URL || 'redis://localhost:6379',

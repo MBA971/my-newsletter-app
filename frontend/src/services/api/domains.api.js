@@ -55,7 +55,7 @@ export const domains = {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
                 // Extract validation error messages
-                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                const messages = errorData.details.map(detail => detail.message || detail.msg).join(', ');
                 throw new Error(messages || 'Failed to create domain');
             }
             throw new Error('Failed to create domain');
@@ -75,7 +75,7 @@ export const domains = {
             const errorData = await response.json().catch(() => ({}));
             if (errorData.details) {
                 // Extract validation error messages
-                const messages = errorData.details.map(detail => detail.msg).join(', ');
+                const messages = errorData.details.map(detail => detail.message || detail.msg).join(', ');
                 throw new Error(messages || 'Failed to update domain');
             }
             throw new Error('Failed to update domain');

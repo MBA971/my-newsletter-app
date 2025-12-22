@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import config from './config/config.js';
 import { createTables } from './db/init.js';
 import { seedDatabase } from './seed-database.js';
@@ -22,29 +23,36 @@ import { startAutoArchiveJob } from './jobs/auto-archive.js';
 import cache from './utils/cache.js';
 
 const app = express();
+
+// Configure trust proxy for rate limiting when behind reverse proxy (Traefik/Nginx)
+app.set('trust proxy', 1);
+
 let port = config.port;
+
+// Security and CORS Middleware (Must be before rate limiter to ensure headers are set)
+app.use(helmet());
+app.use(cors({
+  origin: [config.frontendUrl, 'http://localhost:5173', 'http://localhost:5174'],
+  credentials: true
+}));
 
 // Rate limiting middleware
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Increased for development/local use
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Apply rate limiting to all requests
 app.use(limiter);
 
-// Middleware
-app.use(cookieParser());
-app.use(cors({
-  origin: [config.frontendUrl, 'http://localhost:5173', 'http://localhost:5174'],
-  credentials: true
-}));
+// Parse JSON and Cookies
 app.use(express.json());
+app.use(cookieParser());
 
 // More specific rate limiting for authentication endpoints
 const authLimiter = rateLimit({

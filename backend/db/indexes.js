@@ -26,9 +26,9 @@ export const createIndexes = async () => {
 
     // Indexes for news table
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_news_domain ON news(domain);
+      CREATE INDEX IF NOT EXISTS idx_news_domain_id ON news(domain_id);
     `);
-    console.log('✅ Created index on news.domain');
+    console.log('✅ Created index on news.domain_id');
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_news_date ON news(date);
@@ -52,14 +52,14 @@ export const createIndexes = async () => {
 
     // Composite indexes for common queries
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_news_domain_archived ON news(domain, archived);
+      CREATE INDEX IF NOT EXISTS idx_news_domain_id_archived ON news(domain_id, archived);
     `);
-    console.log('✅ Created composite index on news(domain, archived)');
+    console.log('✅ Created composite index on news(domain_id, archived)');
 
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_news_domain_date ON news(domain, date);
+      CREATE INDEX IF NOT EXISTS idx_news_domain_id_date ON news(domain_id, date);
     `);
-    console.log('✅ Created composite index on news(domain, date)');
+    console.log('✅ Created composite index on news(domain_id, date)');
 
     // Indexes for audit log table
     await pool.query(`

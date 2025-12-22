@@ -17,6 +17,7 @@ export const authenticateToken = (req, res, next) => {
         req.user = decoded;
         next();
     } catch (error) {
+        console.error(`[AUTH DEBUG] Token verification failed: ${error.message}`);
         if (error.name === 'TokenExpiredError') {
             return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
         }
@@ -46,13 +47,13 @@ export const requireRole = (...allowedRoles) => {
 };
 
 // Shortcut middleware for admin only
-export const requireAdmin = requireRole('super_admin');
+export const requireAdmin = requireRole('super_admin', 'admin');
 
 // Shortcut middleware for contributor or admin
 export const requireContributor = requireRole('contributor', 'domain_admin', 'super_admin');
 
 // Shortcut middleware for super admin only
-export const requireSuperAdmin = requireRole('super_admin');
+export const requireSuperAdmin = requireRole('super_admin', 'admin');
 
 // Shortcut middleware for domain admin or super admin
 export const requireDomainAdmin = requireRole('domain_admin', 'super_admin');
@@ -67,7 +68,7 @@ export const checkDomainAccess = (req, res, next) => {
     }
 
     // Super admin can access all domains
-    if (req.user.role === 'super_admin') {
+    if (req.user.role === 'super_admin' || req.user.role === 'admin') {
         return next();
     }
 
@@ -83,10 +84,10 @@ export const checkDomainAccess = (req, res, next) => {
         const requestedDomain = req.body.domain_id || req.params.domain_id || req.query.domain_id;
 
         // If a specific domain is requested and it's not the user's domain, deny access
-        if (requestedDomain && requestedDomain !== req.user.domain) {
+        if (requestedDomain && parseInt(requestedDomain) !== parseInt(req.user.domain_id)) {
             return res.status(403).json({
                 error: 'You can only manage content in your assigned domain',
-                yourDomain: req.user.domain,
+                yourDomain: req.user.domain_id,
                 requestedDomain
             });
         }

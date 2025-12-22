@@ -57,11 +57,7 @@ const ContributorView = ({ news, domains, currentUser, showNotification, fetchDa
     // Function to handle archive/unarchive
     const handleArchiveToggle = async (item) => {
         if (!item || !item.id) return;
-        if (item.archived) {
-            await onUnarchiveNews(item.id);
-        } else {
-            await onArchiveNews(item.id);
-        }
+        await toggleArchive(item.id, item.archived);
     };
 
 
@@ -87,8 +83,7 @@ const ContributorView = ({ news, domains, currentUser, showNotification, fetchDa
     // Use the custom hook for submission logic
     const processNewsSubmission = useNewsSubmissionLogic(currentUser, showNotification, saveNews, editingNews);
 
-    const handleSave = async (e, newsData) => { // newsData is now explicitly passed from NewsModal
-        e.preventDefault();
+    const handleSave = async (newsData) => {
         const success = await processNewsSubmission(newsData);
         if (success) {
             closeModal();
@@ -134,8 +129,8 @@ const ContributorView = ({ news, domains, currentUser, showNotification, fetchDa
             ) : (
                 <div className="grid-responsive">
                     {contributorNews.map(item => (
-                        <div 
-                            key={item.id} 
+                        <div
+                            key={item.id}
                             className={`card ${item.archived ? 'opacity-75' : ''}`}
                             style={item.archived ? { borderLeft: '4px solid #6c757d' } : {}}
                         >
@@ -155,7 +150,7 @@ const ContributorView = ({ news, domains, currentUser, showNotification, fetchDa
                                         <span className="badge badge-warning">PENDING_VALIDATION</span>
                                     )}
                                     {item.archived && (
-                                        <span className="badge" style={{backgroundColor: '#6c757d', color: 'white'}}>ARCHIVED</span>
+                                        <span className="badge" style={{ backgroundColor: '#6c757d', color: 'white' }}>ARCHIVED</span>
                                     )}
                                 </div>
                                 <span className="text-sm text-tertiary">
@@ -164,8 +159,8 @@ const ContributorView = ({ news, domains, currentUser, showNotification, fetchDa
                             </div>
 
                             {/* Title */}
-                            <h3 
-                                className="news-card-title" 
+                            <h3
+                                className="news-card-title"
                                 style={item.archived ? { textDecoration: 'line-through', opacity: 0.7 } : {}}
                             >
                                 {item.title || 'Untitled Article'}
@@ -174,8 +169,8 @@ const ContributorView = ({ news, domains, currentUser, showNotification, fetchDa
                             {/* Content preview - show more content with better truncation */}
                             <div className="news-card-content">
                                 <p className="m-0">
-                                    {item.content && item.content.length > 250 ? 
-                                        `${item.content.substring(0, 250)}...` : 
+                                    {item.content && item.content.length > 250 ?
+                                        `${item.content.substring(0, 250)}...` :
                                         item.content || 'No content'}
                                 </p>
                             </div>
@@ -202,21 +197,21 @@ const ContributorView = ({ news, domains, currentUser, showNotification, fetchDa
                                     >
                                         {item.archived ? (
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                                <path d="M14 3v4a2 2 0 0 0 2 2h4"/>
-                                                <path d="m9 15 2 2 4-4"/>
+                                                <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                                <path d="M14 3v4a2 2 0 0 0 2 2h4" />
+                                                <path d="m9 15 2 2 4-4" />
                                             </svg>
                                         ) : (
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                                <polyline points="7 10 12 15 17 10"/>
-                                                <line x1="12" y1="15" x2="12" y2="3"/>
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                                <polyline points="7 10 12 15 17 10" />
+                                                <line x1="12" y1="15" x2="12" y2="3" />
                                             </svg>
                                         )}
                                     </button>
                                     {item.archived ? (
                                         <button
-                                            onClick={() => onDeleteNews(item.id)}
+                                            onClick={() => deleteNews(item.id)}
                                             className="news-card-action-btn"
                                             title="Permanently delete article (admins only)"
                                             disabled={true}
@@ -225,7 +220,7 @@ const ContributorView = ({ news, domains, currentUser, showNotification, fetchDa
                                         </button>
                                     ) : (
                                         <button
-                                            onClick={() => onDeleteNews(item.id)}
+                                            onClick={() => deleteNews(item.id)}
                                             className="news-card-action-btn"
                                             title="Archive article"
                                         >

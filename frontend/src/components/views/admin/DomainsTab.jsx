@@ -2,12 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Edit, Trash2, Shield } from 'lucide-react';
 import DomainModal from '../../modals/DomainModal';
 
-const DomainsTab = ({ 
-    domains, 
-    currentUser, 
-    onSaveDomain, 
-    onDeleteDomain, 
-    availableColors, 
+const DomainsTab = ({
+    domains,
+    currentUser,
+    onSaveDomain,
+    onDeleteDomain,
+    availableColors,
     domainColors,
     showNotification
 }) => {
@@ -88,16 +88,16 @@ const DomainsTab = ({
                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {/* Domain admins can only edit their assigned domain */}
                                 {(currentUser.role === 'super_admin' ||
-                                  (currentUser.role === 'domain_admin' && domain.name === currentUser.domain)) && (
-                                    <button
-                                        onClick={(e) => handleEditDomain(domain, e)}
-                                        className="btn-icon"
-                                        style={{ color: 'var(--primary-600)' }}
-                                        title="Edit domain"
-                                    >
-                                        <Edit size={18} />
-                                    </button>
-                                )}
+                                    (currentUser.role === 'domain_admin' && domain.name === currentUser.domain)) && (
+                                        <button
+                                            onClick={(e) => handleEditDomain(domain, e)}
+                                            className="btn-icon"
+                                            style={{ color: 'var(--primary-600)' }}
+                                            title="Edit domain"
+                                        >
+                                            <Edit size={18} />
+                                        </button>
+                                    )}
                                 {/* Only super admins can delete domains */}
                                 {currentUser.role === 'super_admin' && (
                                     <button
@@ -113,7 +113,7 @@ const DomainsTab = ({
                         </div>
                         <h3 className="text-xl font-bold mb-1">{domain.name}</h3>
                         <div className="flex items-center justify-between text-sm text-tertiary">
-                            <span>{domain.articlecount || domain.articleCount || 0} articles</span>
+                            <span>{domain.article_count || domain.articlecount || domain.articleCount || 0} articles</span>
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--success-500)' }}></div>
                         </div>
                     </div>

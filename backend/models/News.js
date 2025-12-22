@@ -53,7 +53,7 @@ export const getAllNews = async (includeArchived = false) => {
     FROM news n
     LEFT JOIN domains d ON n.domain_id = d.id
     LEFT JOIN users u ON n.author_id = u.id
-    WHERE n.pending_validation = false  // Only show validated articles
+    WHERE n.pending_validation = false  -- Only show validated articles
   `;
 
   // By default, filter out archived articles
@@ -167,7 +167,7 @@ export const createNews = async (title, domain, content, authorId, needsValidati
     id: joinedQueryResult.rows[0].id,
     title: joinedQueryResult.rows[0].title,
     domain: joinedQueryResult.rows[0].domain_name || 'Unknown Domain',
-    domain_id: joinedQueryResult.rows[0].domain,
+    domain_id: joinedQueryResult.rows[0].domain_id,
     content: joinedQueryResult.rows[0].content,
     author: joinedQueryResult.rows[0].author_name || 'Unknown Author',
     author_id: joinedQueryResult.rows[0].author_id,
@@ -186,6 +186,7 @@ export const createNews = async (title, domain, content, authorId, needsValidati
   // Invalidate relevant caches
   await cache.del(`news:all:archived-false`);
   await cache.del(`news:all:archived-true`);
+  await cache.del('domains:with-article-count');
 
   return newNewsArticle;
 };
@@ -212,7 +213,7 @@ export const updateNews = async (id, title, domain, content) => {
     id: joinedQueryResult.rows[0].id,
     title: joinedQueryResult.rows[0].title,
     domain: joinedQueryResult.rows[0].domain_name || 'Unknown Domain',
-    domain_id: joinedQueryResult.rows[0].domain,
+    domain_id: joinedQueryResult.rows[0].domain_id,
     content: joinedQueryResult.rows[0].content,
     author: joinedQueryResult.rows[0].author_name || 'Unknown Author',
     author_id: joinedQueryResult.rows[0].author_id,
@@ -232,6 +233,7 @@ export const updateNews = async (id, title, domain, content) => {
   await cache.del(`news:id-${id}`);
   await cache.del(`news:all:archived-false`);
   await cache.del(`news:all:archived-true`);
+  await cache.del('domains:with-article-count');
 
   return updatedNewsArticle;
 };
@@ -248,6 +250,7 @@ export const deleteNews = async (id) => {
     await cache.del(`news:id-${id}`);
     await cache.del(`news:all:archived-false`);
     await cache.del(`news:all:archived-true`);
+    await cache.del('domains:with-article-count');
   }
 
   return result.rows.length > 0;
@@ -361,6 +364,7 @@ export const toggleArchiveNews = async (newsId) => {
   await cache.del(`news:all:archived-false`);
   await cache.del(`news:all:archived-true`);
   await cache.del(`news:archived:all`);
+  await cache.del('domains:with-article-count');
 
   return result.rows[0] || null;
 };
@@ -498,6 +502,7 @@ export const validateNews = async (newsId, validatedByUserId) => {
     await cache.del('news:pending-validation:all');
     await cache.del('news:all:archived-false');
     await cache.del('news:all:archived-true');
+    await cache.del('domains:with-article-count');
   }
 
   return result.rows.length > 0;

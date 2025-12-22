@@ -4,6 +4,11 @@ import { X, Check, Shield, Palette, Type } from 'lucide-react';
 const DomainModal = ({ show, onClose, onSave, domainData, setDomainData, isEditing, availableColors }) => {
     if (!show) return null;
 
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(domainData);
+    };
+
     return (
         <div className="modal-overlay glass-dark" onClick={onClose}>
             <div className="modal-content glass animate-scaleIn" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
@@ -22,7 +27,7 @@ const DomainModal = ({ show, onClose, onSave, domainData, setDomainData, isEditi
                     </button>
                 </div>
 
-                <form onSubmit={onSave} className="modal-body space-y-6 pt-6">
+                <form onSubmit={handleSubmit} className="modal-body space-y-6 pt-6">
                     <div className="form-group">
                         <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Domain Identity</label>
                         <div className="input-with-icon">

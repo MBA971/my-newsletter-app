@@ -2,9 +2,6 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { X, FileText, Heading, Briefcase, AlignLeft } from 'lucide-react';
 
 const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, currentUser, domains, showNotification }) => {
-    console.log('[DEBUG] NewsModal received props:', { show, newsData, isEditing, currentUser, domains });
-    console.log('[DEBUG] NewsModal - newsData contents:', JSON.stringify(newsData, null, 2));
-
     // Character counter state
     const [charCount, setCharCount] = useState(newsData?.content ? newsData.content.length : 0);
     const MAX_CHARS = 5000;
@@ -15,61 +12,41 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
     }, [newsData?.content]);
 
     const domainOptions = useMemo(() => {
-        console.log('[DEBUG] Processing domainOptions - domains:', domains);
         if (!domains || !Array.isArray(domains)) {
-            console.log('[DEBUG] domainOptions - returning empty array due to invalid domains');
             return [];
         }
-        const filteredDomains = domains.filter(d => d && d.id && d.name); // Filter out invalid domains
-        console.log('[DEBUG] domainOptions - filtered domains:', filteredDomains);
-        // Log each domain for debugging
-        filteredDomains.forEach((domain, index) => {
-            console.log(`[DEBUG] domainOptions - domain[${index}]:`, domain);
-        });
-        return filteredDomains;
+        return domains.filter(d => d && d.id && d.name); // Filter out invalid domains
     }, [domains]);
 
     const getDomainNameById = useMemo(() => (domainId) => {
-        console.log('[DEBUG] getDomainNameById called with:', domainId, 'Type:', typeof domainId);
         if (!domainOptions.length || domainId === undefined || domainId === null || domainId === '') {
-            console.log('[DEBUG] getDomainNameById - Returning empty due to invalid input');
             return '';
         }
         const id = typeof domainId === 'string' ? parseInt(domainId, 10) : domainId;
         if (isNaN(id)) {
-            console.log('[DEBUG] getDomainNameById - Returning empty due to NaN');
             return '';
         }
         const domain = domainOptions.find(d => d.id === id);
-        const result = domain ? domain.name : '';
-        console.log('[DEBUG] getDomainNameById - id:', id, 'Found domain:', domain, 'Result:', result);
-        return result;
+        return domain ? domain.name : '';
     }, [domainOptions]);
 
     const getDomainIdByName = useMemo(() => (domainName) => {
         if (!domainOptions.length || !domainName) {
-            console.log('[DEBUG] getDomainIdByName - Invalid input - domainOptions.length:', domainOptions.length, 'domainName:', domainName);
             return null; // Return null instead of empty string for better validation
         }
         const domain = domainOptions.find(d => d.name === domainName);
-        const result = domain ? domain.id : null; // Return null instead of empty string for better validation
-        console.log('[DEBUG] getDomainIdByName - domainName:', domainName, 'Found domain:', domain, 'Result:', result);
-        return result;
+        return domain ? domain.id : null; // Return null instead of empty string for better validation
     }, [domainOptions]);
 
     const selectedDomainName = useMemo(() => {
         if (!currentUser || currentUser.role !== 'super_admin') return '';
-        const domainName = getDomainNameById(newsData?.domain_id);
-        console.log('[DEBUG] Computing selectedDomainName - newsData.domain_id:', newsData?.domain_id, 'Result:', domainName);
-        return domainName;
+        return getDomainNameById(newsData?.domain_id);
     }, [newsData?.domain_id, getDomainNameById, currentUser?.role]);
 
     const handleDomainChange = (e) => {
         const domainName = e.target.value;
         const domainId = getDomainIdByName(domainName);
-        console.log('[DEBUG] Domain selection changed - Name:', domainName, 'ID:', domainId, 'Type:', typeof domainId);
         const newData = { ...newsData, domain_id: domainId };
-        console.log('[DEBUG] Setting newsData to:', newData);
         setNewsData(newData);
     };
 
@@ -89,14 +66,12 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
     // Prevent form submission if super admin hasn't selected a domain
     const handleSubmit = (e) => {
         e.preventDefault();
-        
+
         // For super admins, they should be able to create articles in any domain
         // They must still select a domain, but they have elevated permissions
         const domainId = newsData?.domain_id;
         const isValidDomain = domainId !== undefined && domainId !== null && domainId !== '' && domainId !== 0;
-        
-        console.log('[DEBUG] Form submission - Domain ID:', domainId, 'Type:', typeof domainId, 'Is Valid:', isValidDomain);
-        
+
         // Super admins must still select a domain (but they can select any domain)
         if (currentUser.role === 'super_admin' && !isValidDomain) {
             // Show error and prevent submission
@@ -107,7 +82,7 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
             }
             return;
         }
-        
+
         // Proceed with normal save
         onSave(newsData);
     };

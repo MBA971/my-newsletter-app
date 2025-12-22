@@ -3,9 +3,9 @@ import { createIndexes } from './indexes.js';
 
 // Create tables if they don't exist
 export const createTables = async () => {
-    try {
-        // Create domains table
-        await pool.query(`
+  try {
+    // Create domains table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS domains (
         id SERIAL PRIMARY KEY,
         name VARCHAR(100) NOT NULL UNIQUE,
@@ -13,8 +13,8 @@ export const createTables = async () => {
       )
     `);
 
-        // Create users table
-        await pool.query(`
+    // Create users table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
@@ -27,12 +27,12 @@ export const createTables = async () => {
       )
     `);
 
-        // Create news table
-        await pool.query(`
+    // Create news table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS news (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
-        domain INTEGER NOT NULL, -- Reference to domains.id
+        domain_id INTEGER NOT NULL, -- Reference to domains.id
         content TEXT NOT NULL,
         author_id INTEGER, -- Reference to users.id
         date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -42,14 +42,14 @@ export const createTables = async () => {
         pending_validation BOOLEAN DEFAULT FALSE,
         validated_by INTEGER, -- Reference to users.id
         validated_at TIMESTAMP,
-        FOREIGN KEY (domain) REFERENCES domains(id),
+        FOREIGN KEY (domain_id) REFERENCES domains(id),
         FOREIGN KEY (author_id) REFERENCES users(id),
         FOREIGN KEY (validated_by) REFERENCES users(id)
       )
     `);
 
-        // Create subscribers table
-        await pool.query(`
+    // Create subscribers table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS subscribers (
         id SERIAL PRIMARY KEY,
         email VARCHAR(100) UNIQUE NOT NULL,
@@ -58,8 +58,8 @@ export const createTables = async () => {
       )
     `);
 
-        // Create audit log table for connection/disconnection tracking
-        await pool.query(`
+    // Create audit log table for connection/disconnection tracking
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_log (
         id SERIAL PRIMARY KEY,
         user_id INTEGER,
@@ -71,8 +71,8 @@ export const createTables = async () => {
       )
     `);
 
-        // Create likes table for tracking article likes
-        await pool.query(`
+    // Create likes table for tracking article likes
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS likes (
         id SERIAL PRIMARY KEY,
         news_id INTEGER NOT NULL,
@@ -82,13 +82,13 @@ export const createTables = async () => {
       )
     `);
 
-        console.log('Tables created successfully');
+    console.log('Tables created successfully');
 
-        // Create indexes after tables are created
-        await createIndexes();
+    // Create indexes after tables are created
+    await createIndexes();
 
-    } catch (err) {
-        console.error('Error creating tables:', err);
-        throw err;
-    }
+  } catch (err) {
+    console.error('Error creating tables:', err);
+    throw err;
+  }
 };
