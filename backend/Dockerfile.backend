@@ -4,20 +4,20 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy backend package files
+# Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm install --only=production
+# Install dependencies
+RUN npm install
 
-# Copy backend application code
+# Copy application code
 COPY . .
 
 # Expose port
 EXPOSE 3002
 
 # Add a label to force rebuild
-LABEL version="1.2.1"
+LABEL version="1.2.2"
 
 # Start the modular backend server
 CMD ["node", "server.js"]

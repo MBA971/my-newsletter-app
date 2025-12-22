@@ -696,9 +696,9 @@ app.get('/api/news/search', async (req, res) => {
 app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+            `SELECT u.id, u.username, u.email, u.role, u.domain_id, d.name as domain_name, u.created_at 
              FROM users u 
-             LEFT JOIN domains d ON u.domain = d.id 
+             LEFT JOIN domains d ON u.domain_id = d.id 
              ORDER BY u.id`
         );
         res.json(result.rows);
@@ -759,15 +759,15 @@ app.post('/api/users', authenticateToken, requireAdmin, validateUserCreation, as
         const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS) || 10);
 
         const result = await pool.query(
-            'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            'INSERT INTO users (username, email, password, role, domain_id) VALUES ($1, $2, $3, $4, $5) RETURNING id'
             [username, email, hashedPassword, role, domain]
         );
 
         // Fetch the created user with domain name for consistent response
         const userResult = await pool.query(
-            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+            `SELECT u.id, u.username, u.email, u.role, u.domain_id, d.name as domain_name, u.created_at 
              FROM users u 
-             LEFT JOIN domains d ON u.domain = d.id 
+             LEFT JOIN domains d ON u.domain_id = d.id 
              WHERE u.id = $1`,
             [result.rows[0].id]
         );
@@ -847,7 +847,7 @@ app.put('/api/users/:id', authenticateToken, validateUserUpdate, async (req, res
 
         // Only admin can update role and domain
         if (req.user.role === 'admin') {
-            query += `, role = $${paramIndex++}, domain = $${paramIndex++}`;
+            query += `, role = $${paramIndex++}, domain_id = $${paramIndex++}`
             params.push(role, domain);
         }
 
@@ -868,9 +868,9 @@ app.put('/api/users/:id', authenticateToken, validateUserUpdate, async (req, res
 
         // Fetch the updated user with domain name for consistent response
         const userResult = await pool.query(
-            `SELECT u.id, u.username, u.email, u.role, u.domain, d.name as domain_name, u.created_at 
+            `SELECT u.id, u.username, u.email, u.role, u.domain_id, d.name as domain_name, u.created_at 
              FROM users u 
-             LEFT JOIN domains d ON u.domain = d.id 
+             LEFT JOIN domains d ON u.domain_id = d.id 
              WHERE u.id = $1`,
             [id]
         );

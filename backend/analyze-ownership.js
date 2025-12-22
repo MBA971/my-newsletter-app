@@ -5,7 +5,7 @@ const analyzeOwnership = async () => {
         console.log('--- OWNERSHIP ANALYSIS ---');
 
         // Get all users
-        const users = await pool.query('SELECT id, username, domain FROM users');
+        const users = await pool.query('SELECT id, username, domain_id FROM users');
         const userMap = users.rows.reduce((acc, u) => ({ ...acc, [u.username]: u }), {});
 
         // Get all news
@@ -25,7 +25,7 @@ const analyzeOwnership = async () => {
                 console.log(`  - ⚠️ PARTIAL MATCH: User ID ${partialMatch.id} (${partialMatch.username})`);
             } else {
                 console.log(`  - ❌ NO MATCH FOUND. (Closest user in domain "${n.domain}"?)`);
-                const domainUsers = users.rows.filter(u => u.domain === n.domain);
+                const domainUsers = users.rows.filter(u => u.domain_id === n.domain);
                 if (domainUsers.length > 0) {
                     console.log(`    Users in domain: ${domainUsers.map(u => u.username).join(', ')}`);
                 }

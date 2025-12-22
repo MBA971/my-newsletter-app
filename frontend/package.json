@@ -1,7 +1,6 @@
 {
   "name": "alenia-pulse-frontend",
-  "version": "1.2.1",
-  "private": true,
+  "version": "1.4.0",  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -62,7 +62,7 @@ export const checkDomainAccess = (req, res, next) => {
 
     // Contributors can only access their own domain
     if (req.user.role === 'contributor') {
-        const requestedDomain = req.body.domain || req.params.domain;
+        const requestedDomain = req.body.domain_id || req.params.domain_id;
 
         if (requestedDomain && requestedDomain !== req.user.domain) {
             return res.status(403).json({
@@ -83,7 +83,7 @@ export const generateAccessToken = (user) => {
         email: user.email,
         username: user.username,
         role: user.role,
-        domain: user.domain
+        domain_id: user.domain_id
     };
 
     return jwt.sign(payload, JWT_SECRET, { expiresIn: accessExpiration });

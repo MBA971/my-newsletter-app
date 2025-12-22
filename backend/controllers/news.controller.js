@@ -1,37 +1,11 @@
+import * as NewsModel from '../models/News.js';
 import pool from '../utils/database.js';
-import he from 'he';
-
-// Helper function to decode HTML entities in news content
-const decodeNewsContent = (newsItems) => {
-  return newsItems.map(item => ({
-    ...item,
-    content: item.content ? he.decode(item.content) : item.content,
-    title: item.title ? he.decode(item.title) : item.title
-  }));
-};
 
 export const getAllNews = async (req, res) => {
   try {
-    // Join with users table to get author username
-    const result = await pool.query(
-      `SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name
-       FROM news n 
-       LEFT JOIN domains d ON n.domain = d.id 
-       LEFT JOIN users u ON n.author_id = u.id
-       ORDER BY n.date DESC`
-    );
-    
-    // Transform the data to match the old format (domain as name instead of ID)
-    const transformedRows = result.rows.map(row => ({
-      ...row,
-      domain: row.domain_name || row.domain, // Use domain_name if available, otherwise fallback to domain
-      author: row.author_name || 'Unknown' // Use author_name from joined users table
-    })).map(({ domain_name, domain_id, author_name, ...rest }) => rest);
-    
-    // Decode HTML entities in content and title
-    const decodedRows = decodeNewsContent(transformedRows);
-    
-    res.json(decodedRows);
+    const includeArchived = req.query.includeArchived === 'true';
+    const news = await NewsModel.getAllNews(includeArchived);
+    res.json(news);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -39,108 +13,28 @@ export const getAllNews = async (req, res) => {
 };
 
 export const getNewsById = async (req, res) => {
-  console.log('[DEBUG] getNewsById called with id:', req.params.id);
   try {
-    const id = parseInt(req.params.id);
-    
-    // Validate ID
-    if (isNaN(id)) {
-      console.log('[DEBUG] Invalid news ID provided:', req.params.id);
-      return res.status(400).json({ error: 'Invalid news ID' });
+    const news = await NewsModel.getNewsById(req.params.id);
+    if (!news) {
+      return res.status(404).json({ error: 'News not found' });
     }
-
-    console.log('[DEBUG] Querying database for news id:', id);
-    // Join with users table to get author username
-    const result = await pool.query(
-      `SELECT n.*, d.id as domain_id, d.name as domain_name, u.username as author_name
-       FROM news n 
-       LEFT JOIN domains d ON n.domain = d.id 
-       LEFT JOIN users u ON n.author_id = u.id
-       WHERE n.id = $1`,
-      [id]
-    );
-    
-    console.log('[DEBUG] Database query result:', result.rows);
-    
-    if (result.rows.length === 0) {
-      console.log('[DEBUG] News article not found for id:', id);
-      return res.status(404).json({ error: 'News article not found' });
-    }
-    
-    // Transform the data to match the old format (domain as name instead of ID)
-    const transformedRow = {
-      ...result.rows[0],
-      domain: result.rows[0].domain_name || result.rows[0].domain, // Use domain_name if available, otherwise fallback to domain
-      author: result.rows[0].author_name || 'Unknown' // Use author_name from joined users table
-    };
-    const { domain_name, domain_id, author_name, ...finalRow } = transformedRow;
-    
-    // Decode HTML entities in content and title
-    const decodedRow = decodeNewsContent([finalRow])[0];
-    
-    console.log('[DEBUG] Returning news item:', decodedRow);
-    res.json(decodedRow);
+    res.json(news);
   } catch (err) {
-    console.error('[ERROR] getNewsById:', err);
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
 export const createNews = async (req, res) => {
   try {
-    let { title, domain, content } = req.body;
-    const authorId = req.user.userId; // Get the user ID
+    const { title, domain_id, content } = req.body;
+    const authorId = req.user.userId;
 
-    // For contributors, ensure they can only post to their assigned domain
-    if (req.user.role === 'contributor') {
-      // Get the contributor's domain
-      const userResult = await pool.query(
-        'SELECT domain FROM users WHERE id = $1',
-        [authorId]
-      );
-      
-      if (userResult.rows.length > 0 && userResult.rows[0].domain) {
-        // Set domain to contributor's assigned domain
-        domain = userResult.rows[0].domain;
-      }
-    }
+    // Determine if validation is needed based on user role
+    const needsValidation = req.user.role !== 'super_admin';
 
-    // Validate that domain exists if provided
-    if (domain) {
-      const domainResult = await pool.query(
-        'SELECT name FROM domains WHERE id = $1',
-        [domain]
-      );
-      
-      if (domainResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Invalid domain' });
-      }
-    }
-
-    const result = await pool.query(
-      'INSERT INTO news (title, domain, content, author_id, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
-      [title, domain, content, authorId]
-    );
-    
-    // Join with users table to get author username for response
-    const joinedResult = await pool.query(
-      `SELECT n.*, u.username as author_name
-       FROM news n 
-       LEFT JOIN users u ON n.author_id = u.id
-       WHERE n.id = $1`,
-      [result.rows[0].id]
-    );
-    
-    // Add author name to the response
-    const finalResult = {
-      ...joinedResult.rows[0],
-      author: joinedResult.rows[0].author_name || 'Unknown'
-    };
-    delete finalResult.author_name;
-    
-    // Decode HTML entities in the returned data
-    const decodedResult = decodeNewsContent([finalResult])[0];
-    res.json(decodedResult);
+    const news = await NewsModel.createNews(title, domain_id, content, authorId, needsValidation);
+    res.json(news);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -148,71 +42,13 @@ export const createNews = async (req, res) => {
 };
 
 export const updateNews = async (req, res) => {
-  console.log('[DEBUG] updateNews function called');
   try {
-    // Convert ID to integer
-    const id = parseInt(req.params.id);
-    let { title, domain, content } = req.body;
-
-    // Validate ID
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid news ID' });
+    const { title, domain_id, content } = req.body;
+    const news = await NewsModel.updateNews(req.params.id, title, domain_id, content);
+    if (!news) {
+      return res.status(404).json({ error: 'News not found' });
     }
-
-    // Check if user can edit this article
-    console.log(`[DEBUG] Update News - Received ID: ${id} (Type: ${typeof id})`);
-
-    const newsResult = await pool.query(
-      'SELECT * FROM news WHERE id = $1',
-      [id]
-    );
-
-    console.log(`[DEBUG] Update News - Found ${newsResult.rows.length} rows`);
-
-    if (newsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'News article not found' });
-    }
-
-    const article = newsResult.rows[0];
-
-    // Check permissions:
-    // 1. Admin can edit any article
-    // 2. Author can edit their own article (check by user ID)
-    // 3. Editors can edit articles they have been granted access to
-    const isAuthorized = req.user.role === 'admin' ||
-      article.author_id === req.user.userId ||
-      (Array.isArray(article.editors) && article.editors.includes(req.user.email));
-
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'You do not have permission to edit this article' });
-    }
-
-    // For contributors, ensure they cannot change the domain
-    if (req.user.role === 'contributor') {
-      // Override domain with the original domain to prevent domain changes
-      domain = article.domain;
-    }
-
-    // Validate that domain exists if provided
-    if (domain) {
-      const domainResult = await pool.query(
-        'SELECT name FROM domains WHERE name = $1',
-        [domain]
-      );
-      
-      if (domainResult.rows.length === 0) {
-        return res.status(400).json({ error: 'Invalid domain' });
-      }
-    }
-
-    const result = await pool.query(
-      'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
-      [title, domain, content, id]
-    );
-
-    // Decode HTML entities in the returned data
-    const decodedResult = decodeNewsContent(result.rows)[0];
-    res.json(decodedResult);
+    res.json(news);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -221,40 +57,24 @@ export const updateNews = async (req, res) => {
 
 export const deleteNews = async (req, res) => {
   try {
-    // Convert ID to integer
-    const id = parseInt(req.params.id);
-    
-    // Validate ID
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid news ID' });
+    // Check if user is admin (super_admin or domain_admin) for permanent deletion
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'domain_admin';
+
+    if (isAdmin) {
+      // Admins can permanently delete articles
+      const deleted = await NewsModel.deleteNews(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'News not found' });
+      }
+      res.json({ message: 'News deleted permanently' });
+    } else {
+      // Contributors can only archive articles (soft delete)
+      const result = await NewsModel.toggleArchiveNews(req.params.id);
+      if (!result) {
+        return res.status(404).json({ error: 'News not found' });
+      }
+      res.json({ message: 'News archived', archived: result.archived });
     }
-
-    // Check if user can delete this article
-    const newsResult = await pool.query(
-      'SELECT * FROM news WHERE id = $1',
-      [id]
-    );
-
-    if (newsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'News article not found' });
-    }
-
-    const article = newsResult.rows[0];
-
-    // Check permissions:
-    // 1. Admin can delete any article
-    // 2. Author can delete their own article (check by user ID)
-    // 3. Editors can delete articles they have been granted access to
-    const isAuthorized = req.user.role === 'admin' ||
-      article.author_id === req.user.userId ||
-      (Array.isArray(article.editors) && article.editors.includes(req.user.email));
-
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'You do not have permission to delete this article' });
-    }
-
-    await pool.query('DELETE FROM news WHERE id = $1', [id]);
-    res.json({ message: 'News deleted' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -264,25 +84,11 @@ export const deleteNews = async (req, res) => {
 export const searchNews = async (req, res) => {
   try {
     const { q } = req.query;
-    // Join with users table to search by author username
-    const result = await pool.query(
-      `SELECT n.*, u.username as author_name
-       FROM news n 
-       LEFT JOIN users u ON n.author_id = u.id
-       WHERE n.title ILIKE $1 OR n.content ILIKE $1 OR u.username ILIKE $1 
-       ORDER BY n.date DESC`,
-      [`%${q}%`]
-    );
-    
-    // Add author name to the results
-    const resultsWithAuthor = result.rows.map(row => ({
-      ...row,
-      author: row.author_name || 'Unknown'
-    })).map(({ author_name, ...rest }) => rest);
-    
-    // Decode HTML entities in search results
-    const decodedRows = decodeNewsContent(resultsWithAuthor);
-    res.json(decodedRows);
+    if (!q) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+    const results = await NewsModel.searchNews(q);
+    res.json(results);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -291,54 +97,148 @@ export const searchNews = async (req, res) => {
 
 export const grantEditAccess = async (req, res) => {
   try {
-    // Convert ID to integer
-    const id = parseInt(req.params.id);
-    
-    // Validate ID
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid news ID' });
+    const { email } = req.body;
+    await NewsModel.grantEditAccess(req.params.id, email);
+    res.json({ message: 'Edit access granted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const likeNews = async (req, res) => {
+  try {
+    const ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const success = await NewsModel.likeNews(req.params.id, ipAddress);
+    if (success) {
+      res.json({ message: 'Liked successfully' });
+    } else {
+      res.status(400).json({ error: 'Already liked' });
     }
-    
-    const { userEmail } = req.body; // Email of user to grant edit access
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 
-    // Check if the article exists
-    const newsResult = await pool.query(
-      'SELECT * FROM news WHERE id = $1',
-      [id]
-    );
+export const toggleArchiveNews = async (req, res) => {
+  try {
+    const result = await NewsModel.toggleArchiveNews(req.params.id);
+    if (!result) {
+      return res.status(404).json({ error: 'News not found' });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 
-    if (newsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'News article not found' });
+export const getArchivedNews = async (req, res) => {
+  try {
+    let targetDomainId = null;
+
+    // For domain admins, only show news from their assigned domain
+    if (req.user.role === 'domain_admin') {
+      // Use the domain_id from JWT which should be the ID after our auth fix
+      targetDomainId = req.user.domain_id;
+
+      // Fallback to domain name if domain_id is not available
+      if (!targetDomainId && req.user.domain_id) {
+        // If it's a string name, look up the ID (fallback for old tokens)
+        if (typeof req.user.domain_id === 'string') {
+          const domainResult = await pool.query(
+            'SELECT id FROM domains WHERE name = $1',
+            [req.user.domain_id]
+          );
+          if (domainResult.rows.length > 0) {
+            targetDomainId = domainResult.rows[0].id;
+          }
+        } else {
+          // If user.domain_id is already a number, use it as the domain ID
+          targetDomainId = req.user.domain_id;
+        }
+      }
     }
 
-    const article = newsResult.rows[0];
+    const news = await NewsModel.getArchivedNews(targetDomainId);
+    res.json(news);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 
-    // Check if current user is authorized to grant access (author or admin)
-    if (req.user.role !== 'admin' && article.author_id !== req.user.userId) {
-      return res.status(403).json({ error: 'Only the author or admin can grant edit access' });
+export const getPendingValidationNews = async (req, res) => {
+  try {
+    let targetDomainId = null;
+
+    // For domain admins, only show news from their assigned domain
+    if (req.user.role === 'domain_admin') {
+      // Use the domain_id from JWT which should be the ID after our auth fix
+      targetDomainId = req.user.domain_id;
+
+      // Fallback to domain name if domain_id is not available
+      if (!targetDomainId && req.user.domain_id) {
+        // If it's a string name, look up the ID (fallback for old tokens)
+        if (typeof req.user.domain_id === 'string') {
+          const domainResult = await pool.query(
+            'SELECT id FROM domains WHERE name = $1',
+            [req.user.domain_id]
+          );
+          if (domainResult.rows.length > 0) {
+            targetDomainId = domainResult.rows[0].id;
+          }
+        } else {
+          // If user.domain_id is already a number, use it as the domain ID
+          targetDomainId = req.user.domain_id;
+        }
+      }
     }
 
-    // Check if target user exists and is a contributor
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE email = $1 AND role = $2',
-      [userEmail, 'contributor']
-    );
+    const news = await NewsModel.getPendingValidationNews(targetDomainId);
+    res.json(news);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found or not a contributor' });
+export const validateNews = async (req, res) => {
+  try {
+    const success = await NewsModel.validateNews(req.params.id, req.user.userId);
+    if (!success) {
+      return res.status(404).json({ error: 'News not found' });
+    }
+    res.json({ message: 'News validated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const getContributorNews = async (req, res) => {
+  try {
+    const news = await NewsModel.getContributorNews(req.user.userId);
+    res.json(news);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const getAllNewsForAdmin = async (req, res) => {
+  try {
+    console.log('[DEBUG] getAllNewsForAdmin - User:', req.user);
+    let domainId = null;
+    if (req.user.role === 'domain_admin') {
+      console.log('[DEBUG] getAllNewsForAdmin - Domain admin, using domain from JWT:', req.user.domain_id);
+      // For domain admins, use the domain ID from their JWT token
+      domainId = req.user.domain_id;
     }
 
-    // Add user to editors array if not already there
-    const currentEditors = Array.isArray(article.editors) ? article.editors : [];
-    if (!currentEditors.includes(userEmail)) {
-      const newEditors = [...currentEditors, userEmail];
-      await pool.query(
-        'UPDATE news SET editors = $1 WHERE id = $2',
-        [newEditors, id]
-      );
-    }
-
-    res.json({ message: `Edit access granted to ${userEmail}` });
+    const news = await NewsModel.getAllNewsForAdmin(domainId);
+    res.json(news);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

@@ -105,6 +105,6 @@ docker exec -it pulse-db sh
 
 ## Version Information
 
-Current version: 1.2.1
+Current version: 1.2.2
 
 You can verify the deployed version by checking the login modal in the frontend application.

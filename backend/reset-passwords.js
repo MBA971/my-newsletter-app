@@ -28,6 +28,13 @@ const newPasswords = {
     'comm@company.com': 'comm123',
     'admin.contributor@company.com': 'admin.contrib123',
 
+    // Domain Admins
+    'hiring_admin@company.com': 'admin123',
+    'event_admin@company.com': 'admin123',
+    'journey_admin@company.com': 'admin123',
+    'communication_admin@company.com': 'admin123',
+    'admin_admin@company.com': 'admin123',
+
     // Regular users
     'john.doe@company.com': 'user123',
     'jane.smith@company.com': 'user123'

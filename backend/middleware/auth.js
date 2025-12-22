@@ -17,6 +17,7 @@ export const authenticateToken = (req, res, next) => {
         req.user = decoded;
         next();
     } catch (error) {
+        console.error(`[AUTH DEBUG] Token verification failed: ${error.message}`);
         if (error.name === 'TokenExpiredError') {
             return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
         }
@@ -32,6 +33,8 @@ export const requireRole = (...allowedRoles) => {
         }
 
         if (!allowedRoles.includes(req.user.role)) {
+            console.log(`[AUTH DEBUG] User role '${req.user.role}' not in allowed roles: ${JSON.stringify(allowedRoles)}`);
+            console.log(`[AUTH DEBUG] User details:`, JSON.stringify(req.user));
             return res.status(403).json({
                 error: 'Insufficient permissions',
                 required: allowedRoles,
@@ -44,10 +47,19 @@ export const requireRole = (...allowedRoles) => {
 };
 
 // Shortcut middleware for admin only
-export const requireAdmin = requireRole('admin');
+export const requireAdmin = requireRole('super_admin', 'admin');
 
 // Shortcut middleware for contributor or admin
-export const requireContributor = requireRole('contributor', 'admin');
+export const requireContributor = requireRole('contributor', 'domain_admin', 'super_admin');
+
+// Shortcut middleware for super admin only
+export const requireSuperAdmin = requireRole('super_admin', 'admin');
+
+// Shortcut middleware for domain admin or super admin
+export const requireDomainAdmin = requireRole('domain_admin', 'super_admin');
+
+// Shortcut middleware for contributor, domain admin, or super admin
+export const requireContributorOrAdmin = requireRole('contributor', 'domain_admin', 'super_admin');
 
 // Middleware to check if user can modify resource in their domain
 export const checkDomainAccess = (req, res, next) => {
@@ -55,19 +67,27 @@ export const checkDomainAccess = (req, res, next) => {
         return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Admin can access all domains
-    if (req.user.role === 'admin') {
+    // Super admin can access all domains
+    if (req.user.role === 'super_admin' || req.user.role === 'admin') {
+        return next();
+    }
+
+    // Domain admins can access their own domain
+    if (req.user.role === 'domain_admin') {
+        // For domain admins, we'll allow access to their assigned domain
+        // The domain ID is stored in the JWT token
         return next();
     }
 
     // Contributors can only access their own domain
     if (req.user.role === 'contributor') {
-        const requestedDomain = req.body.domain || req.params.domain;
+        const requestedDomain = req.body.domain_id || req.params.domain_id || req.query.domain_id;
 
-        if (requestedDomain && requestedDomain !== req.user.domain) {
+        // If a specific domain is requested and it's not the user's domain, deny access
+        if (requestedDomain && parseInt(requestedDomain) !== parseInt(req.user.domain_id)) {
             return res.status(403).json({
                 error: 'You can only manage content in your assigned domain',
-                yourDomain: req.user.domain,
+                yourDomain: req.user.domain_id,
                 requestedDomain
             });
         }
@@ -83,7 +103,8 @@ export const generateAccessToken = (user) => {
         email: user.email,
         username: user.username,
         role: user.role,
-        domain: user.domain
+        domain_id: user.domain_id,
+        domain_name: user.domain_name
     };
 
     return jwt.sign(payload, JWT_SECRET, { expiresIn: accessExpiration });

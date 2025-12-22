@@ -1,7 +1,6 @@
 {
   "name": "alenia-pulse-backend",
-  "version": "1.2.1",
-  "private": true,
+  "version": "1.4.0",  "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.js",
@@ -22,7 +21,9 @@
     "he": "^1.2.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.13.1"
+    "node-cron": "^4.2.1",
+    "pg": "^8.16.3",
+    "redis": "^5.10.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

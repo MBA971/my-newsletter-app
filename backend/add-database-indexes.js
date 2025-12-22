@@ -28,10 +28,10 @@ const addIndexes = async () => {
         await pool.query('CREATE INDEX IF NOT EXISTS idx_news_date ON news(date)');
         console.log('✅ Index on news.date created');
         
-        // Add index on users.domain for faster joins
-        console.log('Adding index on users.domain...');
-        await pool.query('CREATE INDEX IF NOT EXISTS idx_users_domain ON users(domain)');
-        console.log('✅ Index on users.domain created');
+        // Add index on users.domain_id for faster joins
+        console.log('Adding index on users.domain_id...');
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_users_domain_id ON users(domain_id)');
+        console.log('✅ Index on users.domain_id created');
         
         console.log('--- INDEX CREATION COMPLETE ---');
     } catch (e) {

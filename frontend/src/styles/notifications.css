@@ -1,0 +1,47 @@
+/* ============================================
+  NOTIFICATION / TOAST
+  ============================================ */
+
+.notification {
+  position: fixed;
+  top: var(--spacing-4);
+  right: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-6);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  z-index: var(--z-tooltip);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  font-weight: var(--font-weight-medium);
+  animation: slideInRight 0.3s ease-out;
+  max-width: 400px;
+}
+
+.notification-success {
+  background-color: var(--success-600);
+  color: white;
+}
+
+.notification-error {
+  background-color: var(--error-600);
+  color: white;
+}
+
+.notification-info {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.notification-warning {
+  background-color: var(--warning-600);
+  color: white;
+}
+
+@media (max-width: 640px) {
+  .notification {
+    left: var(--spacing-4);
+    right: var(--spacing-4);
+    max-width: none;
+  }
+}

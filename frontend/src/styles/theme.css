@@ -1,0 +1,44 @@
+/* ============================================
+  DARK MODE TOGGLE
+  ============================================ */
+
+.theme-toggle {
+  position: relative;
+  width: 60px;
+  height: 32px;
+  background-color: var(--gray-300);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+  border: none;
+  padding: 0;
+}
+
+[data-theme="dark"] .theme-toggle {
+  background-color: var(--primary-600);
+}
+
+.theme-toggle-slider {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  background-color: white;
+  border-radius: var(--radius-full);
+  transition: transform var(--transition-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .theme-toggle-slider {
+  transform: translateX(28px);
+}
+
+.theme-toggle-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--gray-600);
+}

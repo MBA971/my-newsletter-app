@@ -31,6 +31,8 @@ services:
       DB_PORT: 5432
       PORT: 3002
       NODE_ENV: production
+      # Redis Configuration
+      REDIS_URL: ${REDIS_URL_PROD}
       # JWT Configuration
       JWT_SECRET: ${JWT_SECRET_PROD}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET_PROD}
@@ -80,6 +82,22 @@ services:
       - "traefik.http.services.svc_pulse.loadbalancer.server.port=80"
       - "traefik.http.services.svc_pulse.loadbalancer.passhostheader=true"
 
+  redis:
+    image: redis:7-alpine
+    container_name: pulse-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pulse_redis.rule=Host(`redis.pulse.academy.alenia.io`)"
+      - "traefik.http.routers.pulse_redis.entrypoints=websecure"
+      - "traefik.http.routers.pulse_redis.tls.certresolver=myresolver"
+      - "traefik.http.routers.pulse_redis.service=svc_pulse_redis"
+      - "traefik.http.services.svc_pulse_redis.loadbalancer.server.port=6379"
+
   pgadmin:
     image: dpage/pgadmin4:9.8
     container_name: pulse-pgadmin
@@ -108,3 +126,4 @@ networks:
 volumes:
   postgres_data:
   pgadmin_data:
+  redis_data:

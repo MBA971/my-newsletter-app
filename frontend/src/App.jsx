@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, LogOut, Sun, Moon, Newspaper, Mail } from 'lucide-react';
 import './App.css';
+import './themes/modernThemes.css';
 
 // Services
-import { auth, domains as domainsApi, news as newsApi, users as usersApi, subscribers as subscribersApi, audit as auditApi } from './services/api';
+import { auth, domains as domainsApi, news as newsApi, users as usersApi, audit as auditApi } from './services/api';
+
 
 // Components
 import Notification from './components/ui/Notification';
@@ -16,11 +18,13 @@ import ContributorView from './components/views/ContributorView';
 import AdminView from './components/views/AdminView';
 
 const App = () => {
-  // State management functions
+  // State management
   const [domains, setDomains] = useState([]);
   const [news, setNews] = useState([]);
   const [users, setUsers] = useState([]);
   const [subscribers, setSubscribers] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [publicNews, setPublicNews] = useState([]); // Separate state for public news
   const [currentView, setCurrentView] = useState('public');
   const [currentUser, setCurrentUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
@@ -31,8 +35,8 @@ const App = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Available colors for new domains
-  const availableColors = [
+  // Constants
+  const availableColors = useMemo(() => [
     { name: 'Blue', value: '#3b82f6' },
     { name: 'Green', value: '#22c55e' },
     { name: 'Purple', value: '#a855f7' },
@@ -41,81 +45,127 @@ const App = () => {
     { name: 'Pink', value: '#ec4899' },
     { name: 'Yellow', value: '#eab308' },
     { name: 'Indigo', value: '#6366f1' }
-  ];
+  ], []);
 
-  // Dark mode effect
+  // Memoized domain colors map
+  const domainColors = useMemo(() =>
+    domains.reduce((acc, domain) => {
+      if (domain && domain.name && domain.color) {
+        acc[domain.name] = domain.color;
+      }
+      return acc;
+    }, {}),
+    [domains]);
+
+  // Theme Management
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
       setDarkMode(true);
       document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      // Apply default theme (macOS style)
+      document.body.className = 'theme-macos';
     }
   }, []);
 
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    if (newMode) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-      localStorage.setItem('theme', 'light');
-    }
-  };
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode(prev => {
+      const newMode = !prev;
+      if (newMode) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+      }
+      return newMode;
+    });
+  }, []);
 
-  // Show notification
-  const showNotification = (message, type = 'info') => {
+  // Notifications
+  const showNotification = useCallback((message, type = 'info') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, []);
 
-  // Data fetching
-  const fetchPublicData = async () => {
+  // Data Actions
+  const fetchPublicData = useCallback(async () => {
     try {
       const [domainsData, newsData] = await Promise.all([
         domainsApi.getAll(),
         newsApi.getAll()
       ]);
-      setDomains(domainsData);
-      setNews(newsData);
+      // Filter out any invalid domains
+      const validDomains = domainsData.filter(domain => domain && domain.id && domain.name);
+      setDomains(validDomains);
+      setPublicNews(newsData);
     } catch (error) {
       console.error('Error fetching public data:', error);
       showNotification('Failed to load public data', 'error');
     }
-  };
+  }, [showNotification]);
 
-  const fetchAdminData = async () => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+  const fetchAdminData = useCallback(async () => {
+    if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'domain_admin')) return;
     try {
-      const [usersData, subscribersData] = await Promise.all([
-        usersApi.getAll(),
-        subscribersApi.getAll()
-      ]);
-      setUsers(usersData);
-      setSubscribers(subscribersData);
+      // Fetch users based on role
+      const usersData = currentUser.role === 'super_admin'
+        ? await usersApi.getAll()
+        : await usersApi.getByDomain();
+
+      // Fetch news based on role
+      // Fetch news based on role
+      // Use getAllAdmin for both super_admin and domain_admin
+      // The backend controller automatically handles domain filtering for domain_admin
+      const newsData = await newsApi.getAllAdmin();
+
+      // Filter out any invalid data
+      const validUsers = usersData.filter(user => user && user.id);
+      const validNews = newsData.filter(newsItem => newsItem && newsItem.id);
+
+      setUsers(validUsers);
+      setNews(validNews);
+
+      // Fetch audit logs for super admins only
+      if (currentUser.role === 'super_admin') {
+        const auditData = await auditApi.getAll();
+        setAuditLogs(auditData);
+      }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      if (currentUser) {
-        showNotification('Failed to load admin data', 'error');
+      // Only show error for super admins, domain admins might have limited access by design
+      if (currentUser.role === 'super_admin') {
+        showNotification('Failed to load admin data: ' + error.message, 'error');
       }
     }
-  };
+  }, [currentUser, showNotification]);
+  const fetchContributorData = useCallback(async () => {
+    if (!currentUser || currentUser.role !== 'contributor') return;
+    try {
+      const contributorNewsData = await newsApi.getContributorNews();
+      // Filter out any invalid news items
+      const validNews = contributorNewsData.filter(newsItem => newsItem && newsItem.id);
+      setNews(validNews);
+    } catch (error) {
+      console.error('Error fetching contributor data:', error);
+      showNotification('Failed to load contributor data: ' + error.message, 'error');
+    }
+  }, [currentUser, showNotification]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       await fetchPublicData();
-      if (currentUser && currentUser.role === 'admin') {
+      if (currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'domain_admin')) {
         await fetchAdminData();
+      } else if (currentUser && currentUser.role === 'contributor') {
+        await fetchContributorData();
       }
-    } catch (error) {
-      console.error('Error fetching data:', error);
     } finally {
-      setTimeout(() => setIsLoading(false), 500);
+      setTimeout(() => setIsLoading(false), 300);
     }
-  };
+  }, [currentUser, fetchPublicData, fetchAdminData, fetchContributorData]);
 
   // Auth Effects
   useEffect(() => {
@@ -129,7 +179,8 @@ const App = () => {
             email: payload.email,
             username: payload.username,
             role: payload.role,
-            domain: payload.domain
+            domain_id: payload.domain_id,
+            domain: payload.domain_name
           });
         } else {
           localStorage.removeItem('accessToken');
@@ -139,195 +190,301 @@ const App = () => {
       }
     }
   }, []);
-
   useEffect(() => {
     fetchData();
-  }, [currentUser]);
+  }, [fetchData]);
 
   // Auth Handlers
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (loginData) => {
+    // If no loginData was provided (shouldn't happen but just in case)
+    if (!loginData || !loginData.email || !loginData.password) {
+      showNotification('Please provide both email and password', 'error');
+      return;
+    }
+
     try {
-        const data = await auth.login(loginForm.email, loginForm.password);
-        
-        localStorage.setItem('accessToken', data.accessToken);
-        setCurrentUser(data.user);
-        setCurrentView(data.user.role === 'admin' ? 'admin' : 'contributor');
-        setShowLogin(false);
-        showNotification(`Welcome back, ${data.user.username}!`, 'success');
-        setLoginForm({ email: '', password: '' });
+      const data = await auth.login(loginData.email, loginData.password);
+      localStorage.setItem('accessToken', data.accessToken);
+      const user = { ...data.user };
+      setCurrentUser(user);
+      setCurrentView(data.user.role === 'super_admin' || data.user.role === 'domain_admin' ? 'admin' : 'contributor');
+      setShowLogin(false);
+      showNotification(`Welcome back, ${data.user.username}!`, 'success');
+      setLoginForm({ email: '', password: '' });
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Login failed';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Login failed', 'error');
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await auth.logout();
     setCurrentUser(null);
     setCurrentView('public');
     setUsers([]);
     setSubscribers([]);
     showNotification('Logged out successfully', 'info');
-  };
+  }, [showNotification]);
 
   // Domain Handlers
   const handleSaveDomain = async (domainData, isEditing) => {
     try {
-        if (isEditing) {
-            await domainsApi.update(domainData.id, domainData);
-            showNotification('Domain updated successfully', 'success');
-        } else {
-            await domainsApi.create(domainData);
-            showNotification('Domain added successfully', 'success');
-        }
-        fetchData();
-        return true;
+      if (isEditing) {
+        await domainsApi.update(domainData.id, domainData);
+        showNotification('Domain updated', 'success');
+      } else {
+        await domainsApi.create(domainData);
+        showNotification('Domain added', 'success');
+      }
+      fetchData();
+      return true;
     } catch (error) {
-        // Show specific validation error messages
-        const errorMessage = error.message || 'Error saving domain';
-        showNotification(errorMessage, 'error');
-        return false;
+      showNotification(error.message || 'Error saving domain', 'error');
+      return false;
     }
-};
+  };
 
   const handleDeleteDomain = async (id) => {
     try {
-        await domainsApi.delete(id);
-        showNotification('Domain deleted successfully', 'success');
-        fetchData();
+      await domainsApi.delete(id);
+      showNotification('Domain deleted', 'success');
+      fetchData();
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Error deleting domain';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Error deleting domain', 'error');
     }
   };
 
   // User Handlers
   const handleSaveUser = async (userData, isEditing) => {
     try {
-        if (isEditing) {
-            await usersApi.update(userData.id, userData);
-            showNotification('User updated successfully', 'success');
-        } else {
-            await usersApi.create(userData);
-            showNotification('User added successfully', 'success');
-        }
-        fetchData();
-        return true;
+      // Map domain to domain_id for consistency with backend
+      const userPayload = {
+        ...userData,
+        domain_id: userData.domain || userData.domain_id || null
+      };
+
+      // Clean up the payload - don't send 'domain' string field to backend
+      if (userPayload.domain) delete userPayload.domain;
+
+      if (isEditing) {
+        await usersApi.update(userData.id, userPayload);
+        showNotification('User updated', 'success');
+      } else {
+        await usersApi.create(userPayload);
+        showNotification('User added', 'success');
+      }
+      fetchData();
+      return true;
     } catch (error) {
-        // Show specific validation error messages
-        const errorMessage = error.message || 'Error saving user';
-        showNotification(errorMessage, 'error');
-        return false;
+      // Try to get more detailed error information
+      if (error.response) {
+        showNotification(`Error saving user: ${error.response.data?.error || error.response.statusText || error.message}`, 'error');
+      } else {
+        showNotification(error.message || 'Error saving user', 'error');
+      }
+      return false;
     }
   };
 
   const handleDeleteUser = async (id) => {
     try {
-        await usersApi.delete(id);
-        showNotification('User deleted successfully', 'success');
-        setUsers(users.filter(u => u.id !== id));
+      await usersApi.delete(id);
+      showNotification('User deleted', 'success');
+      setUsers(prev => prev.filter(u => u.id !== id));
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Error deleting user';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Error deleting user', 'error');
     }
-};
+  };
 
   // News Handlers
   const handleSaveNews = async (newsData, isEditing) => {
     try {
-        const payload = {
-            ...newsData,
-            author: currentUser.username,
-            // If contributor, force their domain. If admin, trust the newsData.domain or fallback
-            domain: currentUser.role === 'contributor' ? currentUser.domain : newsData.domain
-        };
+      let domainValue = newsData.domain_id;  // Use domain_id consistently
 
-        if (isEditing) {
-            await newsApi.update(newsData.id, payload);
-            showNotification('News updated successfully', 'success');
-        } else {
-            await newsApi.create(payload);
-            showNotification('News added successfully', 'success');
+      if (currentUser.role === 'contributor' || currentUser.role === 'domain_admin') {
+        // For contributors and domain admins, ensure they use their assigned domain
+        const userDomainId = currentUser.domain_id;
+
+        if (!userDomainId) {
+          showNotification('You must be assigned to a domain before creating or editing articles.', 'error');
+          return false;
         }
-        fetchData();
-        return true;
+
+        domainValue = userDomainId;
+      } else if (currentUser.role === 'super_admin' && !isEditing) {
+        // For super admins creating new articles, ensure domain is selected
+        if (!domainValue) {
+          showNotification('Please select a domain for this article', 'error');
+          return false;
+        }
+      }
+
+      // Prepare data for API call
+      const newsPayload = {
+        title: newsData.title,
+        content: newsData.content,
+        domain_id: domainValue  // Use domain_id instead of domain
+      };
+
+      console.log('[DEBUG] Sending news payload:', newsPayload);
+
+      if (isEditing) {
+        await newsApi.update(newsData.id, newsPayload);
+        showNotification('Article updated', 'success');
+      } else {
+        await newsApi.create(newsPayload);
+        showNotification('Article created', 'success');
+      }
+      fetchData();
+      return true;
     } catch (error) {
-        // Show specific validation error messages
-        const errorMessage = error.message || 'Error saving news';
-        showNotification(errorMessage, 'error');
-        return false;
+      console.error('[DEBUG] Error in handleSaveNews:', error);
+      if (error.response) {
+        console.error('[DEBUG] Error response:', error.response);
+        showNotification(`Error saving article: ${error.response.data?.error || error.response.statusText || error.message}`, 'error');
+      } else {
+        showNotification(error.message || 'Error saving article', 'error');
+      }
+      return false;
     }
   };
 
   const handleDeleteNews = async (id) => {
     try {
-        await newsApi.delete(id);
-        showNotification('News deleted successfully', 'success');
-        setNews(news.filter(n => n.id !== id));
+      await newsApi.delete(id);
+      showNotification('News deleted', 'success');
+      setNews(prev => prev.filter(n => n.id !== id));
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Error deleting news';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Error deleting news', 'error');
+    }
+  };
+
+  // Archive/Unarchive handlers for contributors
+  const handleArchiveNews = async (id) => {
+    try {
+      await newsApi.archive(id);
+      showNotification('News archived', 'success');
+      fetchData(); // Refresh the data
+    } catch (error) {
+      showNotification(error.message || 'Error archiving news', 'error');
+    }
+  };
+
+  const handleUnarchiveNews = async (id) => {
+    try {
+      await newsApi.unarchive(id);
+      showNotification('News unarchived', 'success');
+      fetchData(); // Refresh the data
+    } catch (error) {
+      showNotification(error.message || 'Error unarchiving news', 'error');
     }
   };
 
   // Profile Handlers
   const handleOpenProfile = () => {
-    // Ensure profileData has all required fields with proper defaults
-    const initialProfileData = {
-        id: currentUser?.id || '',
-        username: currentUser?.username || '',
-        email: currentUser?.email || '',
-        password: '',
-        role: currentUser?.role || 'user',
-        domain: currentUser?.domain || null
-    };
-    setProfileData(initialProfileData);
+    setProfileData({
+      id: currentUser?.id || '',
+      username: currentUser?.username || '',
+      email: currentUser?.email || '',
+      password: '',
+      role: currentUser?.role || 'user',
+      domain: currentUser?.domain || null
+    });
     setShowProfile(true);
-};
+  };
 
-const handleSaveProfile = async (e) => {
-    e.preventDefault();
+  const handleSaveProfile = async (userDataToSend) => {
     try {
-        const updatedUser = await usersApi.update(currentUser.id, profileData);
-        setCurrentUser({ ...currentUser, username: updatedUser.username, email: updatedUser.email }); // Update local state, password is not returned
-        showNotification('Profile updated successfully', 'success');
+      // Only send fields that have actually changed
+      const originalUserData = {
+        id: currentUser?.id,
+        username: currentUser?.username,
+        email: currentUser?.email,
+        role: currentUser?.role,
+        domain: currentUser?.domain,
+        domain_id: currentUser?.domain_id
+      };
+
+      // If no userDataToSend was provided (shouldn't happen but just in case)
+      if (!userDataToSend) {
+        showNotification('No data to save', 'info');
         setShowProfile(false);
+        return;
+      }
+
+      // Compare each field and only include changed ones
+      const finalUserData = {};
+
+      if (userDataToSend.username !== originalUserData.username) {
+        finalUserData.username = userDataToSend.username;
+      }
+
+      if (userDataToSend.email !== originalUserData.email) {
+        finalUserData.email = userDataToSend.email;
+      }
+
+      // Only include password if it's not empty (indicating user wants to change it)
+      if (userDataToSend.password && userDataToSend.password.trim() !== '') {
+        finalUserData.password = userDataToSend.password;
+      }
+
+      // For contributors, don't allow changing domain assignment through profile updates
+      // Domain assignment should only be managed by admins
+      if (currentUser.role === 'contributor') {
+        // Don't include domain or domain_id for contributors in profile updates
+        // Their domain is managed by administrators
+      } else if (currentUser.role === 'domain_admin' || currentUser.role === 'super_admin') {
+        // For domain admins and super admins, include domain_id if it changed
+        if (userDataToSend.domain_id !== originalUserData.domain_id) {
+          // Map domain to domain_id for backend
+          finalUserData.domain_id = userDataToSend.domain_id;
+        }
+      }
+      // Don't include domain_id for regular users as they typically don't have domain assignments
+
+      // If no fields have changed, show a message and return
+      if (Object.keys(finalUserData).length === 0) {
+        showNotification('No changes to save', 'info');
+        setShowProfile(false);
+        return;
+      }
+
+      console.log('Sending profile update with:', finalUserData);
+
+      const updatedUser = await usersApi.update(currentUser.id, finalUserData);
+      setCurrentUser(prev => ({
+        ...prev,
+        username: updatedUser.username,
+        email: updatedUser.email
+      }));
+      showNotification('Profile updated', 'success');
+      setShowProfile(false);
     } catch (error) {
-        // Show specific error messages
-        const errorMessage = error.message || 'Error updating profile';
-        showNotification(errorMessage, 'error');
+      showNotification(error.message || 'Error updating profile', 'error');
     }
-};
+  };
 
   return (
     <div className="app-container">
-      {/* Header */}
       <header className="header">
         <div className="header-container">
           <div className="header-brand">
             <div className="header-logo" style={{ overflow: 'hidden', padding: 0 }}>
-              <img src="/alenia_logo.png" alt="Alenia Pulse" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src="/alenia_logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             <div>
               <h1 className="header-title">Alenia Pulse</h1>
-              <p className="header-subtitle">Consulting & Connection</p>
             </div>
           </div>
 
           <div className="header-actions">
-            <button onClick={toggleDarkMode} className="theme-toggle" aria-label="Toggle dark mode">
+            <button onClick={toggleDarkMode} className="theme-toggle glass" aria-label="Toggle dark mode">
               <div className="theme-toggle-slider">
                 {darkMode ? <Moon className="theme-toggle-icon" /> : <Sun className="theme-toggle-icon" />}
               </div>
             </button>
 
             {currentUser && (
-              <div className="view-switcher">
+              <div className="view-switcher glass">
                 <button
                   onClick={() => setCurrentView('public')}
                   className={`view-switcher-btn ${currentView === 'public' ? 'active' : ''}`}
@@ -342,7 +499,7 @@ const handleSaveProfile = async (e) => {
                   <Mail size={16} />
                   <span>Contributor</span>
                 </button>
-                {currentUser.role === 'admin' && (
+                {(currentUser.role === 'super_admin' || currentUser.role === 'domain_admin') && (
                   <button
                     onClick={() => setCurrentView('admin')}
                     className={`view-switcher-btn ${currentView === 'admin' ? 'active' : ''}`}
@@ -356,22 +513,18 @@ const handleSaveProfile = async (e) => {
 
             {currentUser ? (
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleOpenProfile}
-                  className="btn btn-ghost btn-sm"
-                  style={{ padding: '0px', marginRight: '8px' }}
-                >
+                <button onClick={handleOpenProfile} className="avatar-btn glass">
                   <div className="avatar avatar-sm">
                     {currentUser.username.charAt(0).toUpperCase()}
                   </div>
                 </button>
-                <button onClick={handleLogout} className="btn btn-ghost btn-sm">
+                <button onClick={handleLogout} className="btn btn-ghost btn-sm glass">
                   <LogOut size={16} />
                   <span>Logout</span>
                 </button>
               </div>
             ) : (
-              <button onClick={() => setShowLogin(true)} className="btn btn-primary">
+              <button onClick={() => setShowLogin(true)} className="btn btn-primary glass">
                 <User size={16} />
                 Login
               </button>
@@ -380,14 +533,9 @@ const handleSaveProfile = async (e) => {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="main-content">
         {currentView === 'public' && (
-          <PublicView
-            news={news}
-            domains={domains}
-            isLoading={isLoading}
-          />
+          <PublicView news={publicNews} domains={domains} isLoading={isLoading} />
         )}
 
         {currentView === 'contributor' && currentUser && (
@@ -395,8 +543,11 @@ const handleSaveProfile = async (e) => {
             news={news}
             domains={domains}
             currentUser={currentUser}
-            onSaveNews={handleSaveNews}
             onDeleteNews={handleDeleteNews}
+            onArchiveNews={handleArchiveNews}
+            onUnarchiveNews={handleUnarchiveNews}
+            showNotification={showNotification}
+            fetchData={fetchData}
           />
         )}
 
@@ -413,34 +564,35 @@ const handleSaveProfile = async (e) => {
             onSaveNews={handleSaveNews}
             onDeleteNews={handleDeleteNews}
             availableColors={availableColors}
+            domainColors={domainColors}
+            auditLogs={auditLogs}
+            showNotification={showNotification}
           />
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="footer">
+      <footer className="footer glass">
         <div className="footer-container">
           <div className="footer-section">
-            <h4>About</h4>
-            <p>Company Newsletter - Your source for internal news and updates across all departments.</p>
+            <h4>About Alenia Pulse</h4>
+            <p>Empowering teams through seamless communication and shared knowledge.</p>
           </div>
           <div className="footer-section">
-            <h4>Quick Links</h4>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">Contact Us</a>
+            <h4>Support</h4>
+            <a href="#">Help Center</a>
+            <a href="#">Safety & Security</a>
           </div>
           <div className="footer-section">
-            <h4>Connect</h4>
-            <p>Stay connected with your team and never miss an update.</p>
+            <h4>Latest</h4>
+            <p>Check out the latest updates in the public view.</p>
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} Company Newsletter. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Alenia Consulting. All rights reserved.</p>
+          <p className="text-xs text-tertiary">Version 1.4.0</p>
         </div>
       </footer>
 
-      {/* Login Modal */}
       <LoginModal
         show={showLogin}
         onClose={() => setShowLogin(false)}
@@ -449,7 +601,6 @@ const handleSaveProfile = async (e) => {
         setLoginForm={setLoginForm}
       />
 
-      {/* Profile Modal */}
       {currentUser && (
         <UserModal
           show={showProfile}
@@ -463,7 +614,6 @@ const handleSaveProfile = async (e) => {
         />
       )}
 
-      {/* Notification Toast */}
       <Notification notification={notification} />
     </div>
   );

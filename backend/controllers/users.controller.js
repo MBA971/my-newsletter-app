@@ -1,178 +1,145 @@
-import bcrypt from 'bcrypt';
-import config from '../config/config.js';
+import UserModel from '../models/User.js';
+import { asyncHandler } from '../utils/errorHandler.js';
 import pool from '../utils/database.js';
 
-export const getAllUsers = async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT u.id, u.username, u.email, u.role, u.created_at, d.name as domain_name
-       FROM users u
-       LEFT JOIN domains d ON u.domain = d.id
-       ORDER BY u.id`
-    );
-    
-    // Transform the data to match the old format (domain as name instead of ID)
-    const transformedRows = result.rows.map(row => ({
-      ...row,
-      domain: row.domain_name
-    })).map(({ domain_name, ...rest }) => rest);
-    
-    res.json(transformedRows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+export const getAllUsers = asyncHandler(async (req, res) => {
+  const users = await UserModel.findAll();
+  res.json(users);
+});
+
+export const getUsersByDomain = asyncHandler(async (req, res) => {
+  // For domain admins, get users in their assigned domain
+  // For super admins, this endpoint might not be used or could be modified to accept a domain parameter
+
+  // Get the domain admin's assigned domain from their JWT token
+  const domainId = req.user.domain_id;
+
+  console.log('[DEBUG] getUsersByDomain - Domain ID from JWT:', domainId);
+
+  if (!domainId) {
+    console.log('[DEBUG] getUsersByDomain - No domain assigned to user');
+    return res.status(400).json({ error: 'User not assigned to a domain' });
   }
-};
 
-export const createUser = async (req, res) => {
-  try {
-    const { username, email, password, role, domain } = req.body;
+  // Get users in this domain (contributors and domain admins only)
+  const users = await UserModel.findByDomain(domainId);
+  console.log('[DEBUG] getUsersByDomain - Users found:', users);
+  res.json(users);
+});
 
-    // Hash password
-    const saltRounds = config.jwt.rounds;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+export const createUser = asyncHandler(async (req, res) => {
+  const { username, email, password, role, domain_id } = req.body;
+  const user = await UserModel.create({ username, email, password, role, domain_id });
+  res.json(user);
+});
 
-    // Handle domain - now it should be an integer ID
-    let domainId = null;
-    if (domain !== undefined && domain !== null && domain !== '') {
-      // Convert domain to integer if it's a string
-      if (typeof domain === 'string') {
-        domainId = parseInt(domain);
-      } else if (typeof domain === 'number') {
-        domainId = domain;
-      }
-      
-      // Validate that domainId is a valid integer
-      if (isNaN(domainId)) {
-        return res.status(400).json({ error: 'Invalid domain ID' });
-      }
-    }
+export const updateUser = asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+  console.log(`[DEBUG] updateUser request - ID: ${id}, Body:`, JSON.stringify(req.body, null, 2));
+  console.log(`[DEBUG] updateUser auth - ReqUser: ${req.user.userId}, Role: ${req.user.role}`);
 
-    const result = await pool.query(
-      'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [username, email, hashedPassword, role, domainId]
-    );
-
-    // Remove password from response and add domain name
-    const user = result.rows[0];
-    let domainName = null;
-    if (user.domain) {
-      const domainResult = await pool.query(
-        'SELECT name FROM domains WHERE id = $1',
-        [user.domain]
-      );
-      if (domainResult.rows.length > 0) {
-        domainName = domainResult.rows[0].name;
-      }
-    }
-
-    const { password: _, domain: __, ...userWithoutPassword } = user;
-    res.json({ ...userWithoutPassword, domain: domainName });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+  // Validate ID
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
   }
-};
 
-export const updateUser = async (req, res) => {
-  try {
-    // Convert ID to integer
-    const id = parseInt(req.params.id);
-    
-    // Validate ID
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid user ID' });
-    }
+  // Check permissions: Admin or Self
+  const isSelf = id === parseInt(req.user.userId);
 
-    // Check permissions: Admin or Self
-    // req.user.userId comes from authenticatedToken middleware
-    const isSelf = id === parseInt(req.user.userId);
-    if (req.user.role !== 'admin' && !isSelf) {
-      return res.status(403).json({ error: 'Unauthorized to update this user' });
-    }
+  let isAuthorized = false;
 
-    let { username, email, role, domain, password } = req.body;
+  console.log(`[AUTH DEBUG] isSelf: ${isSelf}, req.user.role: ${req.user.role}`);
 
-    // Prevent privilege escalation: Non-admins cannot change role or domain
-    if (req.user.role !== 'admin') {
-      role = req.user.role;
-      domain = req.user.domain;
-    }
+  if (req.user.role === 'super_admin' || req.user.role === 'admin') {
+    isAuthorized = true;
+  } else if (isSelf) {
+    isAuthorized = true;
+  } else if (req.user.role === 'domain_admin') {
+    // Domain admins can update users in their domain
+    const [requestingUserResult, targetUserResult] = await Promise.all([
+      pool.query('SELECT domain_id FROM users WHERE id = $1', [req.user.userId]),
+      pool.query('SELECT domain_id FROM users WHERE id = $1', [id])
+    ]);
 
-    // Handle domain - now it should be an integer ID
-    let domainId = null;
-    if (domain !== undefined && domain !== null && domain !== '') {
-      // Convert domain to integer if it's a string
-      if (typeof domain === 'string') {
-        domainId = parseInt(domain);
-      } else if (typeof domain === 'number') {
-        domainId = domain;
+    if (requestingUserResult.rows.length > 0 && targetUserResult.rows.length > 0) {
+      const requestingUserDomain = requestingUserResult.rows[0].domain_id;
+      const targetUserDomain = targetUserResult.rows[0].domain_id;
+
+      // Ensure both are present and equal
+      isAuthorized = !!requestingUserDomain && !!targetUserDomain && requestingUserDomain === targetUserDomain;
+
+      if (!isAuthorized) {
+        console.log(`[AUTH DEBUG] Domain mismatch: Admin domain ${requestingUserDomain}, Target domain ${targetUserDomain}`);
       }
-      
-      // Validate that domainId is a valid integer
-      if (isNaN(domainId)) {
-        return res.status(400).json({ error: 'Invalid domain ID' });
-      }
+    } else {
+      console.log(`[AUTH DEBUG] User not found during permission check: ReqUser ${req.user.userId} found: ${requestingUserResult.rows.length > 0}, TargetUser ${id} found: ${targetUserResult.rows.length > 0}`);
     }
-
-    let query = 'UPDATE users SET username = $1, email = $2, role = $3, domain = $4';
-    let params = [username, email, role, domainId];
-
-    if (password && password.trim() !== '') {
-      const saltRounds = config.jwt.rounds;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
-      query += ', password = $5';
-      params.push(hashedPassword);
-    }
-
-    query += ` WHERE id = $${params.length + 1} RETURNING *`;
-    params.push(id);
-
-    const result = await pool.query(query, params);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Remove password from response and add domain name
-    const user = result.rows[0];
-    let domainName = null;
-    if (user.domain) {
-      const domainResult = await pool.query(
-        'SELECT name FROM domains WHERE id = $1',
-        [user.domain]
-      );
-      if (domainResult.rows.length > 0) {
-        domainName = domainResult.rows[0].name;
-      }
-    }
-
-    const { password: _, domain: __, ...userWithoutPassword } = user;
-    res.json({ ...userWithoutPassword, domain: domainName });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
   }
-};
 
-export const deleteUser = async (req, res) => {
-  try {
-    // Convert ID to integer
-    const id = parseInt(req.params.id);
-    
-    // Validate ID
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid user ID' });
-    }
-    
-    // First delete associated audit logs to avoid foreign key constraint violation
-    await pool.query('DELETE FROM audit_log WHERE user_id = $1', [id]);
-    
-    // Then delete the user
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+  if (!isAuthorized) {
+    console.log(`[AUTH DEBUG] Authorization failed for user ${req.user.userId}`);
+    return res.status(403).json({ error: 'Unauthorized to update this user' });
+  }
+
+  let { username, email, role, domain_id, password } = req.body;
+
+  // Prevent privilege escalation: Non-super_admins cannot change role
+  if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
+    role = req.user.role;
+  } else if ((req.user.role === 'super_admin' || req.user.role === 'admin') && req.user.userId === id) {
+    // Admin updating their own profile - keep their current role
+    role = req.user.role;
+  }
+
+  // Prepare update data
+  const updateData = {
+    username,
+    email,
+    role
+  };
+
+  // Only include password if it's provided and not empty
+  if (password && password.trim() !== '') {
+    updateData.password = password;
+  }
+
+  // Only include domain_id in update if it's explicitly provided
+  // For role-based considerations:
+  // - super_admins typically don't have domain assignments, so don't update domain_id unless explicitly provided
+  // - domain_admins and contributors should have domain assignments
+  if (domain_id !== undefined && domain_id !== null) {
+    updateData.domain_id = domain_id;
+  } else if (domain_id === null) {
+    // If explicitly setting to null, allow it (for removing domain assignments)
+    updateData.domain_id = null;
+  }
+  // If domain_id is undefined, don't include it in the update (keep existing value)
+
+  const user = await UserModel.update(id, updateData);
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  res.json(user);
+});
+
+export const deleteUser = asyncHandler(async (req, res) => {
+  const id = parseInt(req.params.id);
+
+  // Validate ID
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
+
+  // First delete associated audit logs to avoid foreign key constraint violation
+  await pool.query('DELETE FROM audit_log WHERE user_id = $1', [id]);
+
+  // Then delete the user
+  const deleted = await UserModel.delete(id);
+  if (deleted) {
     res.json({ message: 'User deleted' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+  } else {
+    res.status(404).json({ error: 'User not found' });
   }
-};
+});

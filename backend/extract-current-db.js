@@ -102,10 +102,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
     const usersResult = await client.query('SELECT * FROM users ORDER BY id');
     if (usersResult.rows.length > 0) {
       exportContent += '-- Insert users (passwords are properly hashed)\n';
-      exportContent += 'INSERT INTO users (id, username, email, password, role, domain, created_at) VALUES\n';
+      exportContent += 'INSERT INTO users (id, username, email, password, role, domain_id, created_at) VALUES\n';
       const userValues = usersResult.rows.map((row, index) => {
         const isLast = index === usersResult.rows.length - 1;
-        const domainValue = row.domain ? row.domain : 'NULL';
+        const domainValue = row.domain_id ? row.domain_id : 'NULL';
         const createdAt = row.created_at ? `'${row.created_at.toISOString()}'` : 'CURRENT_TIMESTAMP';
         return `  (${row.id}, '${row.username.replace(/'/g, "''")}', '${row.email.replace(/'/g, "''")}', '${row.password}', '${row.role}', ${domainValue}, ${createdAt})${isLast ? ';' : ','}`;
       }).join('\n');

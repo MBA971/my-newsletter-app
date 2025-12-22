@@ -76,13 +76,13 @@ export const checkDomainAccess = (req, res, next) => {
     }
 
     // Admin can access all domains
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'super_admin' || req.user.role === 'domain_admin') {
         return next();
     }
 
     // Contributors can only access their own domain
     if (req.user.role === 'contributor') {
-        const requestedDomain = req.body.domain || req.params.domain;
+        const requestedDomain = req.body.domain_id || req.params.domain_id;
 
         if (requestedDomain && requestedDomain !== req.user.domain) {
             return res.status(403).json({
@@ -104,7 +104,7 @@ export const generateAccessToken = (user) => {
         email: user.email,
         username: user.username,
         role: user.role,
-        domain: user.domain
+        domain_id: user.domain_id
     };
     
     console.log('Token payload:', payload);

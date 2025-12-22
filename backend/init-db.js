@@ -13,12 +13,12 @@ const pool = new Pool({
 
 // User data with plain text passwords (will be hashed)
 const users = [
-    // Admin user
+    // Super Admin user
     {
         username: 'admin',
         email: 'admin@company.com',
         password: 'admin123',
-        role: 'admin',
+        role: 'super_admin',
         domain: null
     },
     // Contributor users
@@ -95,6 +95,16 @@ async function initDatabase() {
         await client.query('DELETE FROM users');
         await client.query('DELETE FROM domains');
 
+        // Create indexes for performance (Optimize Version)
+        console.log('Creating database indexes...');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_news_author_id ON news(author_id)');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_news_domain ON news(domain)');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_news_date ON news(date)');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_users_domain_id ON users(domain_id)');
+        console.log('✅ Indexes created successfully');
+
         // Insert domains
         console.log('Inserting domains...');
         for (const domain of domains) {
@@ -104,17 +114,27 @@ async function initDatabase() {
             );
         }
 
+        // First, get domain IDs
+        console.log('Getting domain IDs...');
+        const domainResults = await client.query('SELECT id, name FROM domains');
+        const domainMap = {};
+        domainResults.rows.forEach(row => {
+            domainMap[row.name] = row.id;
+        });
+        console.log('Domain map:', domainMap);
+
         // Insert users with hashed passwords
         console.log('Inserting users with hashed passwords...');
         const saltRounds = config.jwt.rounds;
 
         for (const user of users) {
             const hashedPassword = await bcrypt.hash(user.password, saltRounds);
+            const domainId = user.domain ? domainMap[user.domain] : null;
             await client.query(
-                'INSERT INTO users (username, email, password, role, domain) VALUES ($1, $2, $3, $4, $5)',
-                [user.username, user.email, hashedPassword, user.role, user.domain]
+                'INSERT INTO users (username, email, password, role, domain_id) VALUES ($1, $2, $3, $4, $5)',
+                [user.username, user.email, hashedPassword, user.role, domainId]
             );
-            console.log(`✓ Created user: ${user.username} (${user.email})`);
+            console.log(`✓ Created user: ${user.username} (${user.email}) with role ${user.role}`);
         }
 
         // Insert sample subscribers
@@ -197,9 +217,13 @@ async function initDatabase() {
         ];
 
         for (const article of newsArticles) {
+            const domainId = domainMap[article.domain];
+            // Get author ID
+            const authorResult = await client.query('SELECT id FROM users WHERE username = $1', [article.author]);
+            const authorId = authorResult.rows.length > 0 ? authorResult.rows[0].id : null;
             await client.query(
-                'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, $5)',
-                [article.title, article.domain, article.content, article.author, article.date]
+                'INSERT INTO news (title, domain_id, content, author_id, date) VALUES ($1, $2, $3, $4, $5)',
+                [article.title, domainId, article.content, authorId, article.date]
             );
         }
 

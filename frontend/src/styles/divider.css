@@ -1,0 +1,16 @@
+/* ============================================
+  DIVIDER
+  ============================================ */
+
+.divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: var(--spacing-6) 0;
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 100%;
+  background-color: var(--border-color);
+  margin: 0 var(--spacing-4);
+}
