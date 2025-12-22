@@ -46,11 +46,11 @@ const API_URL = apiUrl;
 To:
 ```javascript
 // Use relative path for proxy, or full URL as fallback
-const API_URL = '/api';
+const API_URL = '';
 ```
 
 ## How the Solution Works
-1. Frontend makes requests to `/api/...` (relative path)
+1. Frontend makes requests to `/api/...` (relative path, with empty API_URL)
 2. Vite proxy intercepts these requests during development
 3. Proxy forwards requests to the backend service (using the VITE_API_URL environment variable)
 4. Backend processes the request and sends response back through the proxy

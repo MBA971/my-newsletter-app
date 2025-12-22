@@ -1,5 +1,5 @@
 // Use relative path for proxy, or full URL as fallback
-const API_URL = '/api';
+const API_URL = '';
 
 // Helper to get headers with auth token
 const getHeaders = (withAuth = false) => {
