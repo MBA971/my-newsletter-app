@@ -1,65 +1,59 @@
-# Security Policy
+# Security Policy for Newsletter Application
 
 ## Supported Versions
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.2.x   | :white_check_mark: |
-| 1.1.x   | :x:                |
-| 1.0.x   | :x:                |
+| 1.4.x   | ✅ Recommended     |
+| < 1.4.0 | ❌ Not supported   |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within this project, please send an email to michel.barnabot@alenia.io. All security vulnerabilities will be promptly addressed.
+If you discover a security vulnerability, please contact the development team directly. Do not open a public issue.
 
-Please do not publicly disclose the vulnerability until it has been addressed by the team.
+## Security Measures
 
-## Security Practices
+### Environment Variables
+- All sensitive configuration is stored in environment variables
+- `.env` files are excluded from version control
+- Use appropriate environment variables for production deployments
+
+### Database Security
+- Database credentials are stored in environment variables
+- SQL export files containing sensitive data are excluded from version control
+- Use parameterized queries to prevent SQL injection
 
 ### Authentication
-- Passwords are hashed using bcrypt with a minimum of 10 rounds
-- JWT tokens are used for stateless authentication
-- Refresh tokens are used to extend user sessions securely
-- Tokens are stored in HttpOnly cookies to prevent XSS attacks
-
-### Authorization
-- Role-based access control (RBAC) is implemented
-- Users can only access resources within their permission level
-- Contributors can only manage content in their assigned domain
-- Admin users have full access to all resources
+- JWT tokens for authentication
+- Passwords are hashed using bcrypt with 12 rounds
+- Secure token handling and refresh mechanisms
 
 ### Data Protection
-- All sensitive data is encrypted at rest
-- Communications are secured with HTTPS in production
-- Database connections use prepared statements to prevent SQL injection
-- Input validation and sanitization are performed on all user inputs
+- The following file types are excluded from version control:
+  - Database export files (`.sql`)
+  - Environment files (`.env`)
+  - Password-related files
+  - Configuration files with sensitive data
 
-### Infrastructure
-- Docker containers are used to isolate application components
-- Regular security updates are applied to base images
-- Network segmentation is implemented to limit lateral movement
-- Access logs are maintained for audit purposes
+### Git Security
+The following files and patterns are excluded from version control:
+- `*.sql` files (database exports)
+- `*.env*` files (environment configurations)
+- `*.db` files (database files)
+- Password and secret related files
+- Only `export-database-final.sql` is allowed as it should be a sanitized version
 
-### Rate Limiting
-- Login attempts are limited to prevent brute force attacks
-- API requests are rate-limited to prevent abuse
-- Suspicious activity is logged and monitored
+## Password Management
+- Passwords are never stored in plain text
+- All passwords are hashed using bcrypt
+- Password reset functionality follows security best practices
 
-## Best Practices for Developers
+## API Security
+- Rate limiting implemented to prevent abuse
+- Authentication required for sensitive operations
+- Input validation and sanitization for all API endpoints
 
-1. Never commit sensitive information (passwords, API keys, etc.) to the repository
-2. Validate and sanitize all user inputs
-3. Use parameterized queries to prevent SQL injection
-4. Implement proper error handling without exposing sensitive information
-5. Keep dependencies up to date
-6. Follow the principle of least privilege for all operations
-7. Regularly review and update security configurations
-
-## Incident Response
-
-In the event of a security incident:
-1. Contain the breach and prevent further damage
-2. Assess the impact and scope of the incident
-3. Notify affected parties as required by law
-4. Document the incident and lessons learned
-5. Implement measures to prevent similar incidents
+## Deployment Security
+- Use HTTPS in production environments
+- Secure environment variables for production deployments
+- Regular security updates for dependencies
