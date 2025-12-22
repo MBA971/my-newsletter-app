@@ -44,6 +44,14 @@ export-database-current.sql
 export-for-pgadmin.sql
 export-database-local.sql
 
+# Obsolete export files
+obsolete/export-database.sql
+obsolete/export-database-current.sql
+obsolete/export-database-final.sql
+obsolete/export-database-local.sql
+obsolete/export-database-pgadmin-compatible.sql
+obsolete/export-database-pgdump.sql
+
 # Password-related files
 reset-passwords-production.sql
 reset-passwords.sql
