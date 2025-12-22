@@ -579,6 +579,7 @@ const App = () => {
             onArchiveNews={handleArchiveNews}
             onUnarchiveNews={handleUnarchiveNews}
             showNotification={showNotification}
+            fetchData={fetchData}
           />
         )}
 

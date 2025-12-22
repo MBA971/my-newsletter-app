@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import { Plus, Newspaper, Trash2, Edit } from 'lucide-react';
 import NewsModal from '../modals/NewsModal';
-import { news as newsApi } from '../../services/api';
+// import { news as newsApi } from '../../services/api'; // Removed, now inside hook
 import { useNewsSubmissionLogic } from '../../hooks/useNewsSubmissionLogic';
 import { useNewsFormManagement } from '../../hooks/useNewsFormManagement';
+import { useNewsService } from '../../hooks/useNewsService'; // New import
 
-const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews, onArchiveNews, onUnarchiveNews, showNotification }) => {
+const ContributorView = ({ news, domains, currentUser, showNotification, fetchData }) => {
     // Use the custom hook for modal form management
     const {
         showModal,
@@ -17,6 +18,9 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
         closeModal,
         handleAddNew,
     } = useNewsFormManagement(currentUser, showNotification);
+
+    // Use the custom hook for news service interactions
+    const { fetchNewsItemById, saveNews, deleteNews, toggleArchive } = useNewsService(showNotification, fetchData);
 
 
     // Filter news for this contributor - Optimized with useMemo
@@ -66,7 +70,7 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
         if (!item) return;
 
         try {
-            const newsItem = await newsApi.getById(item.id);
+            const newsItem = await fetchNewsItemById(item.id);
             setFormData({
                 title: newsItem.title || '',
                 content: newsItem.content || '',
@@ -81,7 +85,7 @@ const ContributorView = ({ news, domains, currentUser, onSaveNews, onDeleteNews,
     };
 
     // Use the custom hook for submission logic
-    const processNewsSubmission = useNewsSubmissionLogic(currentUser, showNotification, onSaveNews, editingNews);
+    const processNewsSubmission = useNewsSubmissionLogic(currentUser, showNotification, saveNews, editingNews);
 
     const handleSave = async (e, newsData) => { // newsData is now explicitly passed from NewsModal
         e.preventDefault();
