@@ -6,6 +6,7 @@ import NewsTab from './admin/NewsTab';
 import ArchivedNewsTab from './admin/ArchivedNewsTab';
 import AuditLogTab from './admin/AuditLogTab';
 import ValidationTab from './admin/ValidationTab';
+import AdminTabs from './admin/AdminTabs';
 
 const AdminView = ({
     domains,
@@ -78,56 +79,7 @@ const AdminView = ({
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="tabs m-0">
-                    <button
-                        className={`tab ${activeTab === 'domains' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('domains')}
-                    >
-                        <Shield size={18} />
-                        Domains
-                    </button>
-                    {currentUser.role === 'super_admin' && (
-                        <button
-                            className={`tab ${activeTab === 'users' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('users')}
-                        >
-                            <User size={18} />
-                            Users
-                        </button>
-                    )}
-                    <button
-                        className={`tab ${activeTab === 'news' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('news')}
-                    >
-                        <FileText size={18} />
-                        News
-                    </button>
-                    <button
-                        className={`tab ${activeTab === 'archived' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('archived')}
-                    >
-                        <Archive size={18} />
-                        Archived
-                    </button>
-                    {currentUser.role === 'super_admin' && (
-                        <button
-                            className={`tab ${activeTab === 'audit' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('audit')}
-                        >
-                            <Activity size={18} />
-                            Audit Log
-                        </button>
-                    )}
-                    <button
-                        className={`tab ${activeTab === 'validation' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('validation')}
-                    >
-                        <Calendar size={18} />
-                        Validation
-                    </button>
-                </div>
-            </div>
+            <AdminTabs activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} />
 
             {/* Tab Content */}
             {activeTab === 'domains' && (

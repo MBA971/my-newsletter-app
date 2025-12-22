@@ -49,13 +49,11 @@ export const validateUserCreation = [
     body('password')
         .notEmpty()
         .withMessage('Password is required')
-        .isLength({ min: 8 })
-        .withMessage('Password must be at least 8 characters')
-        .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-        .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+        .isLength({ min: 6, max: 128 })
+        .withMessage('Password must be between 6 and 128 characters long'),
     body('role')
-        .isIn(['admin', 'contributor', 'user'])
-        .withMessage('Role must be admin, contributor, or user'),
+        .isIn(['user', 'contributor', 'domain_admin', 'super_admin'])
+        .withMessage('Role must be one of: user, contributor, domain_admin, super_admin'),
     body('domain')
         .optional()
         .custom((value, { req }) => {
@@ -96,18 +94,15 @@ export const validateUserUpdate = [
                 return true; // Skip validation
             }
             // Apply validation rules only when password is provided
-            if (value.length < 8) {
-                throw new Error('Password must be at least 8 characters');
-            }
-            if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(value)) {
-                throw new Error('Password must contain at least one uppercase letter, one lowercase letter, and one number');
+            if (value.length < 6 || value.length > 128) {
+                throw new Error('Password must be between 6 and 128 characters long');
             }
             return true;
         }),
     body('role')
         .optional()
-        .isIn(['admin', 'contributor', 'user'])
-        .withMessage('Role must be admin, contributor, or user'),
+        .isIn(['user', 'contributor', 'domain_admin', 'super_admin'])
+        .withMessage('Role must be one of: user, contributor, domain_admin, super_admin'),
     body('domain')
         .optional()
         .custom((value, { req }) => {
@@ -149,16 +144,21 @@ export const validateNewsCreation = [
         .isLength({ min: 10, max: 5000 })
         .withMessage('Content must be between 10 and 5000 characters'),
         // Removed .escape() to prevent HTML entity encoding
-    body('domain')
+    body('domain_id')
         .custom((value, { req }) => {
             // For contributors, domain is required and will be set by the system
             // For admins, domain must be provided
             if (req.user && (req.user.role === 'super_admin' || req.user.role === 'domain_admin')) {
-                if (!value || value.toString().trim() === '') {
+                if (!value && value !== 0) {
                     throw new Error('Domain is required for admin-created articles');
                 }
-                if (value.toString().trim().length < 1 || value.toString().trim().length > 50) {
-                    throw new Error('Domain must be between 1 and 50 characters');
+                
+                // Convert to integer if it's a string
+                const domainId = parseInt(value);
+                
+                // Check if it's a valid integer
+                if (isNaN(domainId) || domainId <= 0) {
+                    throw new Error('Domain must be a valid positive integer');
                 }
             }
             // For contributors, domain will be set by the system, so we don't validate it here

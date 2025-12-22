@@ -1,6 +1,6 @@
 import express from 'express';
 import { getAllNews, getNewsById, createNews, updateNews, deleteNews, searchNews, grantEditAccess, likeNews, toggleArchiveNews, getArchivedNews, getPendingValidationNews, validateNews as controllerValidateNews, getContributorNews, getAllNewsForAdmin } from '../controllers/news.controller.js';
-import { authenticateToken, requireContributor, requireAdmin, requireDomainAdmin } from '../middleware/auth.js';
+import { authenticateToken, requireContributor, requireAdmin, requireDomainAdmin, requireRole } from '../middleware/auth.js';
 import { validateNews, handleValidationErrors } from '../utils/validation.js';
 import { newsCacheMiddleware, domainCacheMiddleware } from '../middleware/cache.js';
 
@@ -13,7 +13,7 @@ router.get('/test-routing', (req, res) => {
 
 // Specific routes first (before parameterized routes)
 router.get('/', newsCacheMiddleware(), getAllNews);
-router.get('/admin', authenticateToken, requireDomainAdmin, getAllNewsForAdmin); // New route for admin users
+router.get('/admin', authenticateToken, requireRole('domain_admin', 'super_admin'), getAllNewsForAdmin); // New route for admin users (domain_admin and super_admin)
 router.get('/contributor', authenticateToken, requireContributor, getContributorNews); // For contributors to get their own articles
 router.get('/archived', authenticateToken, requireDomainAdmin, newsCacheMiddleware(), getArchivedNews); // Domain admin and super admin only
 router.get('/pending-validation', authenticateToken, requireDomainAdmin, getPendingValidationNews); // Domain admin and super admin only

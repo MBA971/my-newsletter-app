@@ -222,7 +222,7 @@ async function initDatabase() {
             const authorResult = await client.query('SELECT id FROM users WHERE username = $1', [article.author]);
             const authorId = authorResult.rows.length > 0 ? authorResult.rows[0].id : null;
             await client.query(
-                'INSERT INTO news (title, domain, content, author_id, date) VALUES ($1, $2, $3, $4, $5)',
+                'INSERT INTO news (title, domain_id, content, author_id, date) VALUES ($1, $2, $3, $4, $5)',
                 [article.title, domainId, article.content, authorId, article.date]
             );
         }

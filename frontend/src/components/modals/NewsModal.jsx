@@ -1,11 +1,9 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { X, FileText, Heading, Briefcase, AlignLeft } from 'lucide-react';
 
-const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, currentUser, domains }) => {
-    // Early return if not showing
-    if (!show) return null;
-    
+const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, currentUser, domains, showNotification }) => {
     console.log('[DEBUG] NewsModal received props:', { show, newsData, isEditing, currentUser, domains });
+    console.log('[DEBUG] NewsModal - newsData contents:', JSON.stringify(newsData, null, 2));
 
     // Character counter state
     const [charCount, setCharCount] = useState(newsData?.content ? newsData.content.length : 0);
@@ -17,37 +15,62 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
     }, [newsData?.content]);
 
     const domainOptions = useMemo(() => {
-        if (!domains || !Array.isArray(domains)) return [];
-        return domains.filter(d => d && d.id && d.name); // Filter out invalid domains
+        console.log('[DEBUG] Processing domainOptions - domains:', domains);
+        if (!domains || !Array.isArray(domains)) {
+            console.log('[DEBUG] domainOptions - returning empty array due to invalid domains');
+            return [];
+        }
+        const filteredDomains = domains.filter(d => d && d.id && d.name); // Filter out invalid domains
+        console.log('[DEBUG] domainOptions - filtered domains:', filteredDomains);
+        // Log each domain for debugging
+        filteredDomains.forEach((domain, index) => {
+            console.log(`[DEBUG] domainOptions - domain[${index}]:`, domain);
+        });
+        return filteredDomains;
     }, [domains]);
 
     const getDomainNameById = useMemo(() => (domainId) => {
-        if (!domainOptions.length || domainId === undefined || domainId === null || domainId === '') return '';
+        console.log('[DEBUG] getDomainNameById called with:', domainId, 'Type:', typeof domainId);
+        if (!domainOptions.length || domainId === undefined || domainId === null || domainId === '') {
+            console.log('[DEBUG] getDomainNameById - Returning empty due to invalid input');
+            return '';
+        }
         const id = typeof domainId === 'string' ? parseInt(domainId, 10) : domainId;
-        if (isNaN(id)) return '';
+        if (isNaN(id)) {
+            console.log('[DEBUG] getDomainNameById - Returning empty due to NaN');
+            return '';
+        }
         const domain = domainOptions.find(d => d.id === id);
-        return domain ? domain.name : '';
+        const result = domain ? domain.name : '';
+        console.log('[DEBUG] getDomainNameById - id:', id, 'Found domain:', domain, 'Result:', result);
+        return result;
     }, [domainOptions]);
 
     const getDomainIdByName = useMemo(() => (domainName) => {
-        if (!domainOptions.length || !domainName) return '';
+        if (!domainOptions.length || !domainName) {
+            console.log('[DEBUG] getDomainIdByName - Invalid input - domainOptions.length:', domainOptions.length, 'domainName:', domainName);
+            return null; // Return null instead of empty string for better validation
+        }
         const domain = domainOptions.find(d => d.name === domainName);
-        return domain ? domain.id : '';
+        const result = domain ? domain.id : null; // Return null instead of empty string for better validation
+        console.log('[DEBUG] getDomainIdByName - domainName:', domainName, 'Found domain:', domain, 'Result:', result);
+        return result;
     }, [domainOptions]);
 
     const selectedDomainName = useMemo(() => {
-        if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'domain_admin')) return '';
-        if (typeof newsData?.domain === 'string' && domainOptions.some(d => d.name === newsData.domain)) {
-            return newsData.domain;
-        } else {
-            return getDomainNameById(newsData?.domain);
-        }
-    }, [newsData?.domain, getDomainNameById, currentUser?.role, domainOptions]);
+        if (!currentUser || currentUser.role !== 'super_admin') return '';
+        const domainName = getDomainNameById(newsData?.domain_id);
+        console.log('[DEBUG] Computing selectedDomainName - newsData.domain_id:', newsData?.domain_id, 'Result:', domainName);
+        return domainName;
+    }, [newsData?.domain_id, getDomainNameById, currentUser?.role]);
 
     const handleDomainChange = (e) => {
         const domainName = e.target.value;
         const domainId = getDomainIdByName(domainName);
-        setNewsData({ ...newsData, domain: domainId });
+        console.log('[DEBUG] Domain selection changed - Name:', domainName, 'ID:', domainId, 'Type:', typeof domainId);
+        const newData = { ...newsData, domain_id: domainId };
+        console.log('[DEBUG] Setting newsData to:', newData);
+        setNewsData(newData);
     };
 
     const handleContentChange = (e) => {
@@ -58,10 +81,36 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
         }
     };
 
-    // Defensive check for required props
+    // Early return if not showing or missing required props
     if (!show || !onClose || !onSave || !setNewsData || !currentUser) {
         return null;
     }
+
+    // Prevent form submission if super admin hasn't selected a domain
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        
+        // For super admins, they should be able to create articles in any domain
+        // They must still select a domain, but they have elevated permissions
+        const domainId = newsData?.domain_id;
+        const isValidDomain = domainId !== undefined && domainId !== null && domainId !== '' && domainId !== 0;
+        
+        console.log('[DEBUG] Form submission - Domain ID:', domainId, 'Type:', typeof domainId, 'Is Valid:', isValidDomain);
+        
+        // Super admins must still select a domain (but they can select any domain)
+        if (currentUser.role === 'super_admin' && !isValidDomain) {
+            // Show error and prevent submission
+            if (typeof showNotification === 'function') {
+                showNotification('Please select a domain for this article', 'error');
+            } else {
+                alert('Please select a domain for this article');
+            }
+            return;
+        }
+        
+        // Proceed with normal save
+        onSave(newsData);
+    };
 
     return (
         <div className="modal-overlay glass-dark" onClick={onClose}>
@@ -81,7 +130,7 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                     </button>
                 </div>
 
-                <form onSubmit={onSave} className="modal-body space-y-5 pt-6">
+                <form onSubmit={handleSubmit} className="modal-body space-y-5 pt-6">
                     <div className="form-group">
                         <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Article Title</label>
                         <div className="input-with-icon">
@@ -97,7 +146,7 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                         </div>
                     </div>
 
-                    {(currentUser.role === 'super_admin' || currentUser.role === 'domain_admin') && (
+                    {currentUser.role === 'super_admin' && (
                         <div className="form-group">
                             <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Target Domain</label>
                             <div className="input-with-icon">
@@ -117,40 +166,19 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                         </div>
                     )}
 
-                    {currentUser.role === 'contributor' && (
+                    {(currentUser.role === 'contributor' || currentUser.role === 'domain_admin') && (
                         <div className="form-group">
                             <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Target Domain</label>
                             <div className="input-with-icon">
                                 <Briefcase className="input-icon" size={18} />
                                 <input
                                     type="text"
-                                    value={(() => {
-                                        // If we're editing and have the original domain, show it
-                                        if (isEditing && newsData?.domain) {
-                                            // If newsData.domain is a number (ID), try to find the domain name
-                                            if (typeof newsData.domain === 'number') {
-                                                const domainObj = domainOptions.find(d => d.id === newsData.domain);
-                                                return domainObj ? domainObj.name : (currentUser.domain || 'Unknown Domain');
-                                            }
-                                            // If newsData.domain is a string, use it directly
-                                            if (typeof newsData.domain === 'string') {
-                                                return newsData.domain;
-                                            }
-                                            return currentUser.domain || 'Unknown Domain';
-                                        }
-                                        // For new articles, show the contributor's assigned domain
-                                        return currentUser.domain || 'No domain assigned';
-                                    })()}
+                                    value={getDomainNameById(isEditing ? newsData?.domain_id : currentUser?.domain_id) || 'No domain assigned'}
                                     className="form-input glass pl-10 h-11 bg-gray-100 cursor-not-allowed"
                                     readOnly
                                     placeholder="Domain assigned by admin"
                                 />
                             </div>
-                            {isEditing && newsData?.domain && typeof newsData.domain === 'number' && !domainOptions.find(d => d.id === newsData.domain) && (
-                                <p className="text-xs text-error-500 mt-1">
-                                    Warning: Article domain ID does not match any existing domain.
-                                </p>
-                            )}
                         </div>
                     )}
 
@@ -186,7 +214,7 @@ const NewsModal = ({ show, onClose, onSave, newsData, setNewsData, isEditing, cu
                         <button
                             type="submit"
                             className="btn btn-success h-11 px-8 shadow-success font-bold"
-                            disabled={charCount > MAX_CHARS || (currentUser.role === 'contributor' && !currentUser.domain)}
+                            disabled={charCount > MAX_CHARS || (currentUser.role === 'contributor' && !currentUser.domain_id)}
                         >
                             {isEditing ? 'Update Article' : 'Publish News'}
                         </button>

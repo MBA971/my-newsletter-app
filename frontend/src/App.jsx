@@ -24,6 +24,7 @@ const App = () => {
   const [users, setUsers] = useState([]);
   const [subscribers, setSubscribers] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [publicNews, setPublicNews] = useState([]); // Separate state for public news
   const [currentView, setCurrentView] = useState('public');
   const [currentUser, setCurrentUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
@@ -99,7 +100,7 @@ const App = () => {
       // Filter out any invalid domains
       const validDomains = domainsData.filter(domain => domain && domain.id && domain.name);
       setDomains(validDomains);
-      setNews(newsData);
+      setPublicNews(newsData);
     } catch (error) {
       console.error('Error fetching public data:', error);
       showNotification('Failed to load public data', 'error');
@@ -117,40 +118,13 @@ const App = () => {
         : await usersApi.getByDomain();
 
       // Fetch news based on role
-      let newsData = [];
-      if (currentUser.role === 'super_admin') {
-        // Super admins get all admin news
-        newsData = await newsApi.getAllAdmin();
-      } else {
-        // Domain admins get all news in their domain plus archived and pending validation
-        console.log('[DEBUG] App: Fetching news data for domain admin:', currentUser);
-        const [allNewsData, archivedNewsData, pendingNewsData] = await Promise.all([
-          newsApi.getAll(), // All news in domain
-          newsApi.getArchived(), // Archived news in domain
-          newsApi.getPendingValidation() // Pending validation news in domain
-        ]);
+      // Fetch news based on role
+      // Use getAllAdmin for both super_admin and domain_admin
+      // The backend controller automatically handles domain filtering for domain_admin
+      console.log('[DEBUG] App: Fetching admin news data for:', currentUser.role);
+      const newsData = await newsApi.getAllAdmin();
 
-        console.log('[DEBUG] App: Received all news data:', allNewsData);
-        console.log('[DEBUG] App: Received archived news data:', archivedNewsData);
-        console.log('[DEBUG] App: Received pending validation news data:', pendingNewsData);
-
-        // Combine all news data
-        newsData = [...allNewsData, ...archivedNewsData, ...pendingNewsData];
-
-        console.log('[DEBUG] App: Combined news data:', newsData);
-
-        // Remove duplicates by ID
-        const seenIds = new Set();
-        newsData = newsData.filter(item => {
-          if (seenIds.has(item.id)) {
-            return false;
-          }
-          seenIds.add(item.id);
-          return true;
-        });
-
-        console.log('[DEBUG] App: Deduplicated news data:', newsData);
-      }
+      console.log('[DEBUG] App: Received admin news data:', newsData);
       console.log('[DEBUG] Users data received:', usersData);
       console.log('[DEBUG] News data received:', newsData);
 
@@ -213,8 +187,8 @@ const App = () => {
             email: payload.email,
             username: payload.username,
             role: payload.role,
-            domain_id: payload.domain,  // domain contains the domain ID
-            domain: payload.domain  // Also keep domain for compatibility with existing components
+            domain_id: payload.domain_id,
+            domain: payload.domain_name
           });
         } else {
           localStorage.removeItem('accessToken');
@@ -234,12 +208,18 @@ const App = () => {
   }, [users]);
 
   // Auth Handlers
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (loginData) => {
+    // If no loginData was provided (shouldn't happen but just in case)
+    if (!loginData || !loginData.email || !loginData.password) {
+      showNotification('Please provide both email and password', 'error');
+      return;
+    }
+
     try {
-      const data = await auth.login(loginForm.email, loginForm.password);
+      const data = await auth.login(loginData.email, loginData.password);
       localStorage.setItem('accessToken', data.accessToken);
-      setCurrentUser(data.user);
+      const user = { ...data.user };
+      setCurrentUser(user);
       setCurrentView(data.user.role === 'super_admin' || data.user.role === 'domain_admin' ? 'admin' : 'contributor');
       setShowLogin(false);
       showNotification(`Welcome back, ${data.user.username}!`, 'success');
@@ -324,7 +304,7 @@ const App = () => {
   };
 
   // News Handlers
-  const handleSaveNews = async (newsData, isEditing) => {
+  const handleSaveNews = async (e, newsData) => {
     try {
       console.log('[DEBUG] handleSaveNews called with:', { newsData, isEditing, currentUser, domains });
       console.log('[DEBUG] Available domains:', domains.map(d => ({ id: d.id, name: d.name })));
@@ -345,13 +325,28 @@ const App = () => {
         // Use the contributor's assigned domain
         domainValue = userDomainId;
         console.log('[DEBUG] Using contributor\'s domain ID:', domainValue);
-      } else if ((currentUser.role === 'domain_admin' || currentUser.role === 'super_admin') && !isEditing) {
-        // For admins creating new articles, ensure domain is selected
+      } else if (currentUser.role === 'domain_admin') {
+        // For domain admins, they should only create/edit articles in their assigned domain
+        const userDomainId = currentUser.domain_id;
+        console.log('[DEBUG] Domain admin role - user domain ID:', userDomainId);
+
+        // Check if domain admin has a domain assigned
+        if (!userDomainId) {
+          console.error('[ERROR] Domain admin user has no domain assigned');
+          showNotification('You must be assigned to a domain before creating or editing articles. Please contact your administrator.', 'error');
+          return false;
+        }
+
+        // Use the domain admin's assigned domain
+        domainValue = userDomainId;
+        console.log('[DEBUG] Using domain admin\'s domain ID:', domainValue);
+      } else if (currentUser.role === 'super_admin' && !isEditing) {
+        // For super admins creating new articles, ensure domain is selected
         if (!domainValue) {
           showNotification('Please select a domain for this article', 'error');
           return false;
         }
-        console.log('[DEBUG] Admin creating article with domain ID:', domainValue);
+        console.log('[DEBUG] Super admin creating article with domain ID:', domainValue);
       }
 
       // Prepare data for API call
@@ -428,61 +423,65 @@ const App = () => {
     setShowProfile(true);
   };
 
-  const handleSaveProfile = async (e) => {
-    e.preventDefault();
+  const handleSaveProfile = async (userDataToSend) => {
     try {
       // Only send fields that have actually changed
-      const userDataToSend = {};
       const originalUserData = {
         id: currentUser?.id,
         username: currentUser?.username,
         email: currentUser?.email,
         role: currentUser?.role,
-        domain: currentUser?.domain
+        domain: currentUser?.domain,
+        domain_id: currentUser?.domain_id
       };
 
-      // Compare each field and only include changed ones
-      if (profileData.username !== originalUserData.username) {
-        userDataToSend.username = profileData.username;
+      // If no userDataToSend was provided (shouldn't happen but just in case)
+      if (!userDataToSend) {
+        showNotification('No data to save', 'info');
+        setShowProfile(false);
+        return;
       }
 
-      if (profileData.email !== originalUserData.email) {
-        userDataToSend.email = profileData.email;
+      // Compare each field and only include changed ones
+      const finalUserData = {};
+      
+      if (userDataToSend.username !== originalUserData.username) {
+        finalUserData.username = userDataToSend.username;
+      }
+
+      if (userDataToSend.email !== originalUserData.email) {
+        finalUserData.email = userDataToSend.email;
       }
 
       // Only include password if it's not empty (indicating user wants to change it)
-      if (profileData.password && profileData.password.trim() !== '') {
-        userDataToSend.password = profileData.password;
+      if (userDataToSend.password && userDataToSend.password.trim() !== '') {
+        finalUserData.password = userDataToSend.password;
       }
 
-      // Only include domain_id for roles that should have domain assignments
-      if (currentUser.role === 'contributor' || currentUser.role === 'domain_admin') {
-        // Only include domain if it's actually changing
-        if (profileData.domain !== originalUserData.domain) {
-          // If user had no domain and still has no domain, don't send domain field
-          if (originalUserData.domain === null && profileData.domain === null) {
-            // Don't include domain field
-          } else if (profileData.domain === null || profileData.domain === '') {
-            // If setting to null/empty, set domain_id to null
-            userDataToSend.domain_id = null;
-          } else {
-            // Map domain to domain_id for backend
-            userDataToSend.domain_id = profileData.domain;
-          }
+      // For contributors, don't allow changing domain assignment through profile updates
+      // Domain assignment should only be managed by admins
+      if (currentUser.role === 'contributor') {
+        // Don't include domain or domain_id for contributors in profile updates
+        // Their domain is managed by administrators
+      } else if (currentUser.role === 'domain_admin' || currentUser.role === 'super_admin') {
+        // For domain admins and super admins, include domain_id if it changed
+        if (userDataToSend.domain_id !== originalUserData.domain_id) {
+          // Map domain to domain_id for backend
+          finalUserData.domain_id = userDataToSend.domain_id;
         }
       }
-      // Don't include domain_id for super_admins or regular users as they typically don't have domain assignments
+      // Don't include domain_id for regular users as they typically don't have domain assignments
 
       // If no fields have changed, show a message and return
-      if (Object.keys(userDataToSend).length === 0) {
+      if (Object.keys(finalUserData).length === 0) {
         showNotification('No changes to save', 'info');
         setShowProfile(false);
         return;
       }
 
-      console.log('[DEBUG] Sending profile update with:', userDataToSend);
+      console.log('[DEBUG] Sending profile update with:', finalUserData);
 
-      const updatedUser = await usersApi.update(currentUser.id, userDataToSend);
+      const updatedUser = await usersApi.update(currentUser.id, finalUserData);
       setCurrentUser(prev => ({
         ...prev,
         username: updatedUser.username,
@@ -567,7 +566,7 @@ const App = () => {
 
       <main className="main-content">
         {currentView === 'public' && (
-          <PublicView news={news} domains={domains} isLoading={isLoading} />
+          <PublicView news={publicNews} domains={domains} isLoading={isLoading} />
         )}
 
         {currentView === 'contributor' && currentUser && (

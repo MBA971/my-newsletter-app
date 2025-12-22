@@ -32,6 +32,8 @@ export const requireRole = (...allowedRoles) => {
         }
 
         if (!allowedRoles.includes(req.user.role)) {
+            console.log(`[AUTH DEBUG] User role '${req.user.role}' not in allowed roles: ${JSON.stringify(allowedRoles)}`);
+            console.log(`[AUTH DEBUG] User details:`, JSON.stringify(req.user));
             return res.status(403).json({
                 error: 'Insufficient permissions',
                 required: allowedRoles,
@@ -100,7 +102,8 @@ export const generateAccessToken = (user) => {
         email: user.email,
         username: user.username,
         role: user.role,
-        domain: user.domain_id !== undefined ? user.domain_id : user.domain
+        domain_id: user.domain_id,
+        domain_name: user.domain_name
     };
 
     return jwt.sign(payload, JWT_SECRET, { expiresIn: accessExpiration });

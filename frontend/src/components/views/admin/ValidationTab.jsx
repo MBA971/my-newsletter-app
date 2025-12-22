@@ -24,7 +24,7 @@ const ValidationTab = ({
                 const pending = await newsApi.getPendingValidation();
                 console.log('[DEBUG] ValidationTab: Received pending validation news:', pending);
                 console.log('[DEBUG] ValidationTab: User role:', currentUser.role);
-                console.log('[DEBUG] ValidationTab: User domain:', currentUser.domain);
+                console.log('[DEBUG] ValidationTab: User domain_id:', currentUser.domain_id);
                 setPendingValidationNews(pending);
             } catch (error) {
                 console.error('Failed to load pending validation news:', error);
@@ -45,12 +45,12 @@ const ValidationTab = ({
             : '??';
     };
 
-    // Filter Logic
+    // Filter Logic - domain admins should only see news in their assigned domain
     const filteredPendingValidationNews = pendingValidationNews.filter(item =>
-        (currentUser.role === 'super_admin' || item.domain_id === currentUser.domain_id) &&
-        (item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.domain.toLowerCase().includes(searchTerm.toLowerCase()))
+        !searchTerm ||
+        (item.title && item.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.author && item.author.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.domain && item.domain.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     return (

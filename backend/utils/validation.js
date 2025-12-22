@@ -80,7 +80,7 @@ export const validateNews = [
     .trim()
     .isLength({ min: 10 })
     .withMessage('Content must be at least 10 characters long'),
-  body('domain')
+  body('domain_id')
     .isInt({ min: 1 })
     .withMessage('Domain must be a valid integer ID')
     .toInt(),

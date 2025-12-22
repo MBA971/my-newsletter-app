@@ -21,7 +21,7 @@ const transformNewsResponse = (row) => {
     id: row.id,
     title: row.title,
     domain: row.domain_name || 'Unknown Domain',
-    domain_id: row.domain,
+    domain_id: row.domain, // Include the domain ID
     content: row.content,
     author: row.author_name || 'Unknown Author',
     author_id: row.author_id,
@@ -40,37 +40,37 @@ export const getAllNews = async (includeArchived = false) => {
   const cacheKey = `news:all:archived-${includeArchived}`;
 
   // Try to get from cache first
-  let news = await cache.get(cacheKey);
-  if (news) {
+  let newsArticles = await cache.get(cacheKey);
+  if (newsArticles) {
     console.log(`🎯 News cache HIT for key: ${cacheKey}`);
-    return news;
+    return newsArticles;
   }
 
   console.log(`❌ News cache MISS for key: ${cacheKey}`);
 
-  let query = `
+  let sqlQuery = `
     SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
     FROM news n
-    LEFT JOIN domains d ON n.domain = d.id
+    LEFT JOIN domains d ON n.domain_id = d.id
     LEFT JOIN users u ON n.author_id = u.id
-    WHERE n.pending_validation = false  -- Only show validated articles
+    WHERE n.pending_validation = false  // Only show validated articles
   `;
 
   // By default, filter out archived articles
   if (!includeArchived) {
-    query += ` AND n.archived = false`;
+    sqlQuery += ` AND n.archived = false`;
   }
 
-  query += ` ORDER BY n.date DESC`;
+  sqlQuery += ` ORDER BY n.date DESC`;
 
-  const result = await pool.query(query);
+  const queryResult = await pool.query(sqlQuery);
 
   // Transform the data to match the old format (domain as name instead of ID)
-  const transformedRows = result.rows.map(row => ({
+  const transformedNewsRows = queryResult.rows.map(row => ({
     id: row.id,
     title: row.title,
     domain: row.domain_name || 'Unknown Domain', // Use domain_name if available, otherwise show Unknown Domain
-    domain_id: row.domain,
+    domain_id: row.domain_id, // Include the domain ID
     content: row.content,
     author: row.author_name || 'Unknown Author', // Use author_name from joined users table, otherwise show Unknown Author
     author_id: row.author_id, // Explicitly include author_id
@@ -84,12 +84,12 @@ export const getAllNews = async (includeArchived = false) => {
   }));
 
   // Decode HTML entities in content and title
-  news = decodeNewsContent(transformedRows);
+  newsArticles = decodeNewsContent(transformedNewsRows);
 
   // Cache the result for 5 minutes
-  await cache.set(cacheKey, news, 300);
+  await cache.set(cacheKey, newsArticles, 300);
 
-  return news;
+  return newsArticles;
 };
 
 // Get news by ID
@@ -97,143 +97,143 @@ export const getNewsById = async (id) => {
   const cacheKey = `news:id-${id}`;
 
   // Try to get from cache first
-  let news = await cache.get(cacheKey);
-  if (news) {
+  let newsArticle = await cache.get(cacheKey);
+  if (newsArticle) {
     console.log(`🎯 News by ID cache HIT for key: ${cacheKey}`);
-    return news;
+    return newsArticle;
   }
 
   console.log(`❌ News by ID cache MISS for key: ${cacheKey}`);
 
-  const result = await pool.query(
+  const queryResult = await pool.query(
     `SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
      FROM news n
-     LEFT JOIN domains d ON n.domain = d.id
+     LEFT JOIN domains d ON n.domain_id = d.id
      LEFT JOIN users u ON n.author_id = u.id
      WHERE n.id = $1`,
     [id]
   );
 
-  if (result.rows.length === 0) {
+  if (queryResult.rows.length === 0) {
     return null;
   }
 
   // Transform the data to match the old format
-  const transformedRow = {
-    id: result.rows[0].id,
-    title: result.rows[0].title,
-    domain: result.rows[0].domain_name || 'Unknown Domain',
-    domain_id: result.rows[0].domain,
-    content: result.rows[0].content,
-    author: result.rows[0].author_name || 'Unknown Author',
-    author_id: result.rows[0].author_id,
-    date: result.rows[0].date,
-    editors: result.rows[0].editors,
-    likes_count: result.rows[0].likes_count,
-    archived: result.rows[0].archived,
-    pending_validation: result.rows[0].pending_validation,
-    validated_by: result.rows[0].validated_by,
-    validated_at: result.rows[0].validated_at
+  const transformedArticle = {
+    id: queryResult.rows[0].id,
+    title: queryResult.rows[0].title,
+    domain: queryResult.rows[0].domain_name || 'Unknown Domain',
+    domain_id: queryResult.rows[0].domain_id,
+    content: queryResult.rows[0].content,
+    author: queryResult.rows[0].author_name || 'Unknown Author',
+    author_id: queryResult.rows[0].author_id,
+    date: queryResult.rows[0].date,
+    editors: queryResult.rows[0].editors,
+    likes_count: queryResult.rows[0].likes_count,
+    archived: queryResult.rows[0].archived,
+    pending_validation: queryResult.rows[0].pending_validation,
+    validated_by: queryResult.rows[0].validated_by,
+    validated_at: queryResult.rows[0].validated_at
   };
 
   // Decode HTML entities in content and title
-  news = decodeNewsContent([transformedRow])[0];
+  newsArticle = decodeNewsContent([transformedArticle])[0];
 
   // Cache the result for 10 minutes
-  await cache.set(cacheKey, news, 600);
+  await cache.set(cacheKey, newsArticle, 600);
 
-  return news;
+  return newsArticle;
 };
 
 // Create news article
 export const createNews = async (title, domain, content, authorId, needsValidation = false) => {
-  const result = await pool.query(
-    'INSERT INTO news (title, domain, content, author_id, pending_validation) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+  const insertResult = await pool.query(
+    'INSERT INTO news (title, domain_id, content, author_id, pending_validation) VALUES ($1, $2, $3, $4, $5) RETURNING *',
     [title, domain, content, authorId, needsValidation]
   );
 
   // Join with users and domains tables to get author username and domain name for response
-  const joinedResult = await pool.query(
+  const joinedQueryResult = await pool.query(
     `SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
      FROM news n
-     LEFT JOIN domains d ON n.domain = d.id
+     LEFT JOIN domains d ON n.domain_id = d.id
      LEFT JOIN users u ON n.author_id = u.id
      WHERE n.id = $1`,
-    [result.rows[0].id]
+    [insertResult.rows[0].id]
   );
 
   // Transform the data to match the old format
-  const transformedRow = {
-    id: joinedResult.rows[0].id,
-    title: joinedResult.rows[0].title,
-    domain: joinedResult.rows[0].domain_name || 'Unknown Domain',
-    domain_id: joinedResult.rows[0].domain,
-    content: joinedResult.rows[0].content,
-    author: joinedResult.rows[0].author_name || 'Unknown Author',
-    author_id: joinedResult.rows[0].author_id,
-    date: joinedResult.rows[0].date,
-    editors: joinedResult.rows[0].editors,
-    likes_count: joinedResult.rows[0].likes_count,
-    archived: joinedResult.rows[0].archived,
-    pending_validation: joinedResult.rows[0].pending_validation,
-    validated_by: joinedResult.rows[0].validated_by,
-    validated_at: joinedResult.rows[0].validated_at
+  const transformedArticle = {
+    id: joinedQueryResult.rows[0].id,
+    title: joinedQueryResult.rows[0].title,
+    domain: joinedQueryResult.rows[0].domain_name || 'Unknown Domain',
+    domain_id: joinedQueryResult.rows[0].domain,
+    content: joinedQueryResult.rows[0].content,
+    author: joinedQueryResult.rows[0].author_name || 'Unknown Author',
+    author_id: joinedQueryResult.rows[0].author_id,
+    date: joinedQueryResult.rows[0].date,
+    editors: joinedQueryResult.rows[0].editors,
+    likes_count: joinedQueryResult.rows[0].likes_count,
+    archived: joinedQueryResult.rows[0].archived,
+    pending_validation: joinedQueryResult.rows[0].pending_validation,
+    validated_by: joinedQueryResult.rows[0].validated_by,
+    validated_at: joinedQueryResult.rows[0].validated_at
   };
 
   // Decode HTML entities in content and title
-  const news = decodeNewsContent([transformedRow])[0];
+  const newNewsArticle = decodeNewsContent([transformedArticle])[0];
 
   // Invalidate relevant caches
   await cache.del(`news:all:archived-false`);
   await cache.del(`news:all:archived-true`);
 
-  return news;
+  return newNewsArticle;
 };
 
 // Update news article
 export const updateNews = async (id, title, domain, content) => {
-  const result = await pool.query(
-    'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
+  const updateResult = await pool.query(
+    'UPDATE news SET title = $1, domain_id = $2, content = $3 WHERE id = $4 RETURNING *',
     [title, domain, content, id]
   );
 
   // Join with users and domains tables to get author username and domain name for response
-  const joinedResult = await pool.query(
+  const joinedQueryResult = await pool.query(
     `SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
      FROM news n
-     LEFT JOIN domains d ON n.domain = d.id
+     LEFT JOIN domains d ON n.domain_id = d.id
      LEFT JOIN users u ON n.author_id = u.id
      WHERE n.id = $1`,
-    [result.rows[0].id]
+    [updateResult.rows[0].id]
   );
 
   // Transform the data to match the old format
-  const transformedRow = {
-    id: joinedResult.rows[0].id,
-    title: joinedResult.rows[0].title,
-    domain: joinedResult.rows[0].domain_name || 'Unknown Domain',
-    domain_id: joinedResult.rows[0].domain,
-    content: joinedResult.rows[0].content,
-    author: joinedResult.rows[0].author_name || 'Unknown Author',
-    author_id: joinedResult.rows[0].author_id,
-    date: joinedResult.rows[0].date,
-    editors: joinedResult.rows[0].editors,
-    likes_count: joinedResult.rows[0].likes_count,
-    archived: joinedResult.rows[0].archived,
-    pending_validation: joinedResult.rows[0].pending_validation,
-    validated_by: joinedResult.rows[0].validated_by,
-    validated_at: joinedResult.rows[0].validated_at
+  const transformedArticle = {
+    id: joinedQueryResult.rows[0].id,
+    title: joinedQueryResult.rows[0].title,
+    domain: joinedQueryResult.rows[0].domain_name || 'Unknown Domain',
+    domain_id: joinedQueryResult.rows[0].domain,
+    content: joinedQueryResult.rows[0].content,
+    author: joinedQueryResult.rows[0].author_name || 'Unknown Author',
+    author_id: joinedQueryResult.rows[0].author_id,
+    date: joinedQueryResult.rows[0].date,
+    editors: joinedQueryResult.rows[0].editors,
+    likes_count: joinedQueryResult.rows[0].likes_count,
+    archived: joinedQueryResult.rows[0].archived,
+    pending_validation: joinedQueryResult.rows[0].pending_validation,
+    validated_by: joinedQueryResult.rows[0].validated_by,
+    validated_at: joinedQueryResult.rows[0].validated_at
   };
 
   // Decode HTML entities in content and title
-  const news = decodeNewsContent([transformedRow])[0];
+  const updatedNewsArticle = decodeNewsContent([transformedArticle])[0];
 
   // Invalidate relevant caches
   await cache.del(`news:id-${id}`);
   await cache.del(`news:all:archived-false`);
   await cache.del(`news:all:archived-true`);
 
-  return news;
+  return updatedNewsArticle;
 };
 
 // Delete news article
@@ -258,7 +258,7 @@ export const searchNews = async (query) => {
   const result = await pool.query(
     `SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
      FROM news n
-     LEFT JOIN domains d ON n.domain = d.id
+     LEFT JOIN domains d ON n.domain_id = d.id
      LEFT JOIN users u ON n.author_id = u.id
      WHERE (LOWER(n.title) LIKE LOWER($1) OR LOWER(n.content) LIKE LOWER($1))
      AND n.archived = false
@@ -272,7 +272,8 @@ export const searchNews = async (query) => {
     id: row.id,
     title: row.title,
     domain: row.domain_name || 'Unknown Domain',
-    domain_id: row.domain,
+    domain_id: row.domain_id,
+
     content: row.content,
     author: row.author_name || 'Unknown Author',
     author_id: row.author_id,
@@ -380,14 +381,14 @@ export const getArchivedNews = async (domainId = null) => {
   let query = `
     SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
      FROM news n
-     LEFT JOIN domains d ON n.domain = d.id
+     LEFT JOIN domains d ON n.domain_id = d.id
      LEFT JOIN users u ON n.author_id = u.id
      WHERE n.archived = true
   `;
   const params = [];
 
   if (domainId) {
-    query += ` AND n.domain = $${params.length + 1}`;
+    query += ` AND n.domain_id = $${params.length + 1}`;
     params.push(domainId);
   }
 
@@ -400,7 +401,8 @@ export const getArchivedNews = async (domainId = null) => {
     id: row.id,
     title: row.title,
     domain: row.domain_name || 'Unknown Domain',
-    domain_id: row.domain,
+    domain_id: row.domain_id,
+
     content: row.content,
     author: row.author_name || 'Unknown Author',
     author_id: row.author_id,
@@ -423,42 +425,42 @@ export const getArchivedNews = async (domainId = null) => {
 };
 
 // Get pending validation news
-export const getPendingValidationNews = async (domainId = null) => {
-  const cacheKey = domainId ? `news:pending-validation:domain-${domainId}` : 'news:pending-validation:all';
+export const getPendingValidationNews = async (targetDomainId = null) => {
+  const cacheKey = targetDomainId ? `news:pending-validation:domain-${targetDomainId}` : 'news:pending-validation:all';
 
   // Try to get from cache first
-  let news = await cache.get(cacheKey);
-  if (news) {
+  let pendingValidationNews = await cache.get(cacheKey);
+  if (pendingValidationNews) {
     console.log(`🎯 Pending validation news cache HIT for key: ${cacheKey}`);
-    return news;
+    return pendingValidationNews;
   }
 
   console.log(`❌ Pending validation news cache MISS for key: ${cacheKey}`);
 
-  let query = `
+  let sqlQuery = `
     SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
      FROM news n
-     LEFT JOIN domains d ON n.domain = d.id
+     LEFT JOIN domains d ON n.domain_id = d.id
      LEFT JOIN users u ON n.author_id = u.id
      WHERE n.pending_validation = true
   `;
-  const params = [];
+  const queryParams = [];
 
-  if (domainId) {
-    query += ` AND n.domain = $${params.length + 1}`;
-    params.push(domainId);
+  if (targetDomainId) {
+    sqlQuery += ` AND n.domain_id = $${queryParams.length + 1}`;
+    queryParams.push(targetDomainId);
   }
 
-  query += ` ORDER BY n.date DESC`;
+  sqlQuery += ` ORDER BY n.date DESC`;
 
-  const result = await pool.query(query, params);
+  const queryResult = await pool.query(sqlQuery, queryParams);
 
   // Transform the data to match the old format
-  const transformedRows = result.rows.map(row => ({
+  const transformedPendingValidationRows = queryResult.rows.map(row => ({
     id: row.id,
     title: row.title,
     domain: row.domain_name || 'Unknown Domain',
-    domain_id: row.domain,
+    domain_id: row.domain_id, // Include the domain ID (which comes from the news.domain_id column)
     content: row.content,
     author: row.author_name || 'Unknown Author',
     author_id: row.author_id,
@@ -472,12 +474,12 @@ export const getPendingValidationNews = async (domainId = null) => {
   }));
 
   // Decode HTML entities in content and title
-  news = decodeNewsContent(transformedRows);
+  pendingValidationNews = decodeNewsContent(transformedPendingValidationRows);
 
   // Cache the result for 5 minutes
-  await cache.set(cacheKey, news, 300);
+  await cache.set(cacheKey, pendingValidationNews, 300);
 
-  return news;
+  return pendingValidationNews;
 };
 
 // Validate news article
@@ -517,7 +519,7 @@ export const getContributorNews = async (authorId) => {
   const result = await pool.query(
     `SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
      FROM news n
-     LEFT JOIN domains d ON n.domain = d.id
+     LEFT JOIN domains d ON n.domain_id = d.id
      LEFT JOIN users u ON n.author_id = u.id
      WHERE n.author_id = $1
      ORDER BY n.date DESC`,
@@ -529,7 +531,8 @@ export const getContributorNews = async (authorId) => {
     id: row.id,
     title: row.title,
     domain: row.domain_name || 'Unknown Domain',
-    domain_id: row.domain,
+    domain_id: row.domain_id,
+
     content: row.content,
     author: row.author_name || 'Unknown Author',
     author_id: row.author_id,
@@ -556,37 +559,38 @@ export const getAllNewsForAdmin = async (domainId = null) => {
   const cacheKey = domainId ? `news:admin:domain-${domainId}` : 'news:admin:all';
 
   // Try to get from cache first
-  let news = await cache.get(cacheKey);
-  if (news) {
+  let adminNews = await cache.get(cacheKey);
+  if (adminNews) {
     console.log(`🎯 Admin news cache HIT for key: ${cacheKey}`);
-    return news;
+    return adminNews;
   }
 
   console.log(`❌ Admin news cache MISS for key: ${cacheKey}`);
 
-  let query = `
+  let sqlQuery = `
     SELECT n.*, d.name as domain_name, u.username as author_name, n.likes_count
     FROM news n
-    LEFT JOIN domains d ON n.domain = d.id
+    LEFT JOIN domains d ON n.domain_id = d.id
     LEFT JOIN users u ON n.author_id = u.id
   `;
-  const params = [];
+  const queryParams = [];
 
   if (domainId) {
-    query += ` WHERE n.domain = $1`;
-    params.push(domainId);
+    sqlQuery += ` WHERE n.domain_id = $1`;
+    queryParams.push(domainId);
   }
 
-  query += ` ORDER BY n.date DESC`;
+  sqlQuery += ` ORDER BY n.date DESC`;
 
-  const result = await pool.query(query, params);
+  const queryResult = await pool.query(sqlQuery, queryParams);
 
   // Transform the data to match the old format
-  const transformedRows = result.rows.map(row => ({
+  const transformedNewsRows = queryResult.rows.map(row => ({
     id: row.id,
     title: row.title,
     domain: row.domain_name || 'Unknown Domain',
-    domain_id: row.domain,
+    domain_id: row.domain_id,
+
     content: row.content,
     author: row.author_name || 'Unknown Author',
     author_id: row.author_id,
@@ -600,10 +604,10 @@ export const getAllNewsForAdmin = async (domainId = null) => {
   }));
 
   // Decode HTML entities in content and title
-  news = decodeNewsContent(transformedRows);
+  adminNews = decodeNewsContent(transformedNewsRows);
 
   // Cache the result for 5 minutes
-  await cache.set(cacheKey, news, 300);
+  await cache.set(cacheKey, adminNews, 300);
 
-  return news;
+  return adminNews;
 };

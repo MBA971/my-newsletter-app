@@ -50,15 +50,20 @@ const UsersTab = ({
         setShowAddUser(true);
     };
 
-    const handleUserSubmit = async (e) => {
-        e.preventDefault();
+    const handleUserSubmit = async (userData) => {
+        // If no userData was provided (shouldn't happen but just in case)
+        if (!userData) {
+            console.error('No user data provided to handleUserSubmit');
+            return;
+        }
+
         // Create a copy of userData and conditionally include password
-        let userData = { ...newUser };
+        let userDataToSend = { ...userData };
         if (editingUser) {
-            userData.id = editingUser.id;
+            userDataToSend.id = editingUser.id;
             // For editing, only include password if changePassword is true and password is not empty
-            if (!changePassword || !userData.password || userData.password.trim() === '') {
-                delete userData.password;
+            if (!changePassword || !userDataToSend.password || userDataToSend.password.trim() === '') {
+                delete userDataToSend.password;
             }
         }
 
@@ -67,11 +72,11 @@ const UsersTab = ({
             // Find the domain object for the current user's domain
             const currentUserDomain = domains.find(d => d.name === currentUser.domain);
             if (currentUserDomain) {
-                userData.domain = String(currentUserDomain.id);
+                userDataToSend.domain = String(currentUserDomain.id);
             }
         }
 
-        const success = await onSaveUser(userData, !!editingUser);
+        const success = await onSaveUser(userDataToSend, !!editingUser);
         if (success) closeUserModal();
     };
 

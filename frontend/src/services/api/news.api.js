@@ -48,7 +48,11 @@ export const news = {
         const response = await fetch(`${API_URL}/api/news/admin`, {
             headers: getHeaders(true)
         });
-        if (!response.ok) throw new Error('Failed to fetch admin news');
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[DEBUG] getAllAdmin failed. Status:', response.status, 'Body:', errorText);
+            throw new Error(`Failed to fetch admin news: ${response.status} ${errorText}`);
+        }
         return response.json();
     },
 
@@ -115,14 +119,14 @@ export const news = {
         if (!response.ok) {
             const errorText = await response.text();
             console.log('[DEBUG] Update response not ok:', { status: response.status, errorText });
-            
+
             let errorData;
             try {
                 errorData = JSON.parse(errorText);
             } catch (e) {
                 errorData = { message: errorText || 'Failed to update news' };
             }
-            
+
             if (errorData.details) {
                 // Extract validation error messages
                 const messages = errorData.details.map(detail => detail.msg).join(', ');

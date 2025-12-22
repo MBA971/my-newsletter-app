@@ -15,7 +15,7 @@ const NewsTab = ({
     // News Modal State
     const [showNewsModal, setShowNewsModal] = useState(false);
     const [editingNews, setEditingNews] = useState(null);
-    const [newNews, setNewNews] = useState({ title: '', content: '', domain: '' });
+    const [newNews, setNewNews] = useState({ title: '', content: '', domain_id: null });
     const [searchTerm, setSearchTerm] = useState('');
 
     // Reset search when component mounts
@@ -34,7 +34,7 @@ const NewsTab = ({
             setNewNews({
                 title: newsItem.title,
                 content: newsItem.content,
-                domain: newsItem.domain
+                domain_id: newsItem.domain_id
             });
             setShowNewsModal(true);
         } catch (error) {
@@ -44,42 +44,40 @@ const NewsTab = ({
             setNewNews({
                 title: item.title,
                 content: item.content,
-                domain: item.domain
+                domain_id: item.domain_id
             });
             setShowNewsModal(true);
         }
     };
 
-    const handleNewsSubmit = async (e) => {
-        e.preventDefault();
-        const newsData = editingNews ? { ...newNews, id: editingNews.id } : newNews;
-
-        // For domain admins, ensure they can only create/edit news in their domain
-        if (currentUser.role === 'domain_admin') {
-            // Find the domain ID for the current user's domain
-            const currentUserDomain = domains.find(d => d.name === currentUser.domain);
-            if (currentUserDomain) {
-                newsData.domain = String(currentUserDomain.id);
-            }
+    const handleNewsSubmit = async (newsData) => {
+        // If no newsData was provided (shouldn't happen but just in case)
+        if (!newsData) {
+            console.error('No news data provided to handleNewsSubmit');
+            return;
         }
 
-        const success = await onSaveNews(newsData, !!editingNews);
+        // Create a copy of the newsData and ensure ID is included when editing
+        const newsDataToSend = editingNews ? { ...newsData, id: editingNews.id } : newsData;
+
+        const success = await onSaveNews(newsDataToSend, !!editingNews);
         if (success) closeNewsModal();
     };
 
     const closeNewsModal = () => {
         setShowNewsModal(false);
         setEditingNews(null);
-        setNewNews({ title: '', content: '', domain: '' });
+        setNewNews({ title: '', content: '', domain_id: null });
     };
 
-    // Filter Logic
+    // Filter Logic - assuming news is pre-filtered by role in App.jsx
     const filteredNews = news.filter(item =>
-        (currentUser.role === 'super_admin' || item.domain_id === currentUser.domain_id) &&
-        (item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.domain.toLowerCase().includes(searchTerm.toLowerCase()))
+        !searchTerm ||
+        (item.title && item.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.author && item.author.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.domain && item.domain.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
 
     return (
         <div className="animate-fadeIn">
@@ -91,7 +89,7 @@ const NewsTab = ({
                 <button
                     onClick={() => {
                         setEditingNews(null);
-                        setNewNews({ title: '', content: '', domain: '' });
+                        setNewNews({ title: '', content: '', domain_id: null });
                         setShowNewsModal(true);
                     }}
                     className="btn btn-secondary"

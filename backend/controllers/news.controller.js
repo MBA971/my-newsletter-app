@@ -136,26 +136,32 @@ export const toggleArchiveNews = async (req, res) => {
 
 export const getArchivedNews = async (req, res) => {
   try {
-    let domainId = null;
+    let targetDomainId = null;
 
     // For domain admins, only show news from their assigned domain
     if (req.user.role === 'domain_admin') {
-      // Use domain from JWT (it contains the domain ID after our auth fix)
-      domainId = req.user.domain_id || req.user.domain;
+      // Use the domain_id from JWT which should be the ID after our auth fix
+      targetDomainId = req.user.domain_id;
 
-      // If it's a string name, look up the ID (fallback for old tokens)
-      if (domainId && typeof domainId === 'string' && isNaN(parseInt(domainId))) {
-        const domainResult = await pool.query(
-          'SELECT id FROM domains WHERE name = $1',
-          [domainId]
-        );
-        if (domainResult.rows.length > 0) {
-          domainId = domainResult.rows[0].id;
+      // Fallback to domain name if domain_id is not available
+      if (!targetDomainId && req.user.domain_id) {
+        // If it's a string name, look up the ID (fallback for old tokens)
+        if (typeof req.user.domain_id === 'string') {
+          const domainResult = await pool.query(
+            'SELECT id FROM domains WHERE name = $1',
+            [req.user.domain_id]
+          );
+          if (domainResult.rows.length > 0) {
+            targetDomainId = domainResult.rows[0].id;
+          }
+        } else {
+          // If user.domain_id is already a number, use it as the domain ID
+          targetDomainId = req.user.domain_id;
         }
       }
     }
 
-    const news = await NewsModel.getArchivedNews(domainId);
+    const news = await NewsModel.getArchivedNews(targetDomainId);
     res.json(news);
   } catch (err) {
     console.error(err);
@@ -165,26 +171,32 @@ export const getArchivedNews = async (req, res) => {
 
 export const getPendingValidationNews = async (req, res) => {
   try {
-    let domainId = null;
+    let targetDomainId = null;
 
     // For domain admins, only show news from their assigned domain
     if (req.user.role === 'domain_admin') {
-      // Use domain from JWT (it contains the domain ID after our auth fix)
-      domainId = req.user.domain_id || req.user.domain;
+      // Use the domain_id from JWT which should be the ID after our auth fix
+      targetDomainId = req.user.domain_id;
 
-      // If it's a string name, look up the ID (fallback for old tokens)
-      if (domainId && typeof domainId === 'string' && isNaN(parseInt(domainId))) {
-        const domainResult = await pool.query(
-          'SELECT id FROM domains WHERE name = $1',
-          [domainId]
-        );
-        if (domainResult.rows.length > 0) {
-          domainId = domainResult.rows[0].id;
+      // Fallback to domain name if domain_id is not available
+      if (!targetDomainId && req.user.domain_id) {
+        // If it's a string name, look up the ID (fallback for old tokens)
+        if (typeof req.user.domain_id === 'string') {
+          const domainResult = await pool.query(
+            'SELECT id FROM domains WHERE name = $1',
+            [req.user.domain_id]
+          );
+          if (domainResult.rows.length > 0) {
+            targetDomainId = domainResult.rows[0].id;
+          }
+        } else {
+          // If user.domain_id is already a number, use it as the domain ID
+          targetDomainId = req.user.domain_id;
         }
       }
     }
 
-    const news = await NewsModel.getPendingValidationNews(domainId);
+    const news = await NewsModel.getPendingValidationNews(targetDomainId);
     res.json(news);
   } catch (err) {
     console.error(err);
@@ -220,9 +232,9 @@ export const getAllNewsForAdmin = async (req, res) => {
     console.log('[DEBUG] getAllNewsForAdmin - User:', req.user);
     let domainId = null;
     if (req.user.role === 'domain_admin') {
-      console.log('[DEBUG] getAllNewsForAdmin - Domain admin, using domain from JWT:', req.user.domain);
+      console.log('[DEBUG] getAllNewsForAdmin - Domain admin, using domain from JWT:', req.user.domain_id);
       // For domain admins, use the domain ID from their JWT token
-      domainId = req.user.domain;
+      domainId = req.user.domain_id;
     }
 
     const news = await NewsModel.getAllNewsForAdmin(domainId);

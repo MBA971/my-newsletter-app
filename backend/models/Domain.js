@@ -105,7 +105,7 @@ class DomainModel {
       const result = await pool.query(
         `SELECT d.*, COUNT(n.id) as article_count
          FROM domains d
-         LEFT JOIN news n ON d.id = n.domain AND n.pending_validation = false AND n.archived = false
+         LEFT JOIN news n ON d.id = n.domain_id AND n.pending_validation = false AND n.archived = false
          GROUP BY d.id, d.name, d.color
          ORDER BY d.id`
       );

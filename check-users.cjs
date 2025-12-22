@@ -20,7 +20,7 @@ async function checkUsers() {
     const usersResult = await client.query(`
       SELECT u.id, u.username, u.email, u.role, d.name as domain_name 
       FROM users u 
-      LEFT JOIN domains d ON u.domain = d.id 
+      LEFT JOIN domains d ON u.domain_id = d.id 
       ORDER BY u.id
     `);
     

@@ -51,17 +51,18 @@ const UserModal = ({ show, onClose, onSave, userData, setUserData, isEditing, do
     // Custom submit handler to handle domain properly for contributors
     const handleSubmit = (e) => {
         e.preventDefault();
-        
-        // For contributors editing their own profile, if they don't have a domain assigned,
-        // we should not send the domain field at all to avoid validation errors
-        if (isProfile && normalizedRole === 'contributor' && (!userData.domain || userData.domain === null || userData.domain === '')) {
-            // Create a copy of userData without the domain field
-            const { domain, ...userDataWithoutDomain } = userData;
+
+        // For contributors editing their own profile, they should not change their domain assignment
+        // The domain should be managed by admins only
+        if (isProfile && normalizedRole === 'contributor') {
+            // Create a copy of userData without the domain field for profile updates
+            // Contributors shouldn't be able to change their domain assignment through profile
+            const { domain, domain_id, ...userDataWithoutDomain } = userData;
             // Call onSave with the modified userData
-            onSave({ ...e, target: { ...e.target, userData: userDataWithoutDomain } });
+            onSave({ ...userDataWithoutDomain });
         } else {
-            // Normal save - pass the event directly to the parent handler
-            onSave(e);
+            // For admin users or non-profile updates, allow normal save
+            onSave(userData);
         }
     };
 

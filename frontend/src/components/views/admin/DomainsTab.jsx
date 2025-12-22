@@ -23,10 +23,16 @@ const DomainsTab = ({
         setShowAddDomain(true);
     };
 
-    const handleDomainSubmit = async (e) => {
-        e.preventDefault();
-        const domainData = editingDomain ? { ...newDomain, id: editingDomain.id } : newDomain;
-        const success = await onSaveDomain(domainData, !!editingDomain);
+    const handleDomainSubmit = async (domainData) => {
+        // If no domainData was provided (shouldn't happen but just in case)
+        if (!domainData) {
+            console.error('No domain data provided to handleDomainSubmit');
+            return;
+        }
+
+        // Create a copy of the domainData and ensure ID is included when editing
+        const domainDataToSend = editingDomain ? { ...domainData, id: editingDomain.id } : domainData;
+        const success = await onSaveDomain(domainDataToSend, !!editingDomain);
         if (success) closeDomainModal();
     };
 
