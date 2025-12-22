@@ -7,6 +7,13 @@ export default defineConfig({
   server: {
     host: true, // Needed for Docker
     port: 5173,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_URL || 'http://localhost:3002',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   // Ensure the build outputs to the correct directory
   build: {
