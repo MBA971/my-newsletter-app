@@ -33,7 +33,6 @@ const app = express();
 app.set('trust proxy', 1);
 
 let port = config.port;
-console.log('Server will run on port:', port);
 
 // Security and CORS Middleware (Must be before rate limiter to ensure headers are set)
 app.use(helmet());
