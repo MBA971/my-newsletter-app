@@ -1,9 +1,9 @@
 // Handle Docker vs Localhost resolution
-let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+let apiUrl = import.meta.env.VITE_API_URL || '';
 
 // If running in browser and URL contains Docker service names, replace with localhost
-// This fixes the issue where docker-compose sets VITE_API_URL=http://backend:3002 but browser needs localhost:3002
-if (typeof window !== 'undefined') {
+// This ensures consistency between local dev and production
+if (typeof window !== 'undefined' && apiUrl) {
     // Replace various Docker service names with localhost
     if (apiUrl.includes('://backend')) {
         apiUrl = apiUrl.replace('://backend:', '://localhost:').replace('://backend', '://localhost:3002');
