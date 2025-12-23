@@ -18,7 +18,10 @@ const LoginModal = ({ show, onClose, onLogin, loginForm, setLoginForm }) => {
                     </button>
                 </div>
 
-                <form onSubmit={onLogin} className="modal-body pt-6">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    onLogin(loginForm);
+                }} className="modal-body pt-6">
                     <div className="form-group">
                         <label className="form-label text-xs font-bold uppercase tracking-wider text-tertiary">Email Address</label>
                         <div className="input-with-icon">
@@ -30,6 +33,7 @@ const LoginModal = ({ show, onClose, onLogin, loginForm, setLoginForm }) => {
                                 className="form-input glass pl-10 h-12"
                                 required
                                 placeholder="name@company.com"
+                                autoComplete="email"
                             />
                         </div>
                     </div>
@@ -44,6 +48,7 @@ const LoginModal = ({ show, onClose, onLogin, loginForm, setLoginForm }) => {
                                 className="form-input glass pl-10 h-12"
                                 required
                                 placeholder="••••••••"
+                                autoComplete="current-password"
                             />
                         </div>
                     </div>

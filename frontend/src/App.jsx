@@ -86,7 +86,7 @@ const App = () => {
   // Notifications
   const showNotification = useCallback((message, type = 'info') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+    setTimeout(() => setNotification(null), 8000);
   }, []);
 
   // Data Actions
@@ -196,22 +196,28 @@ const App = () => {
 
   // Auth Handlers
   const handleLogin = async (loginData) => {
+    console.log('🔐 LOGIN BUTTON CLICKED:', { email: loginData?.email, timestamp: new Date().toISOString() });
+    
     // If no loginData was provided (shouldn't happen but just in case)
     if (!loginData || !loginData.email || !loginData.password) {
+      console.log('❌ LOGIN FAILED: Missing email or password');
       showNotification('Please provide both email and password', 'error');
       return;
     }
 
     try {
+      console.log('📡 SENDING LOGIN REQUEST TO BACKEND');
       const data = await auth.login(loginData.email, loginData.password);
+      console.log('✅ LOGIN SUCCESSFUL:', { userId: data.user.id, role: data.user.role });
+      
       localStorage.setItem('accessToken', data.accessToken);
       const user = { ...data.user };
       setCurrentUser(user);
-      setCurrentView(data.user.role === 'super_admin' || data.user.role === 'domain_admin' ? 'admin' : 'contributor');
       setShowLogin(false);
       showNotification(`Welcome back, ${data.user.username}!`, 'success');
       setLoginForm({ email: '', password: '' });
     } catch (error) {
+      console.error('❌ LOGIN FAILED:', error.message);
       showNotification(error.message || 'Login failed', 'error');
     }
   };
