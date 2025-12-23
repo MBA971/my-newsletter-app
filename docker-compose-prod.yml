@@ -32,7 +32,7 @@ services:
       PORT: 3002
       NODE_ENV: production
       # Redis Configuration
-      REDIS_URL: ${REDIS_URL_PROD}
+      REDIS_URL: redis://redis:6379
       # JWT Configuration
       JWT_SECRET: ${JWT_SECRET_PROD}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET_PROD}
