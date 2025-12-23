@@ -1,16 +1,17 @@
 import express from 'express';
 import cors from 'cors';
-import { Pool } from 'pg';
-import dotenv from 'dotenv';
-import bcrypt from 'bcrypt';
 import cookieParser from 'cookie-parser';
-import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
 // Import configuration
 import config from './config/config.js';
 import { createTables } from './db/init.js';
 import { seedDatabase } from './seed-database.js';
-import pool from './utils/database.js';
 
 // Import routes
 import authRoutes from './routes/auth.routes.js';
@@ -32,6 +33,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 let port = config.port;
+console.log('Server will run on port:', port);
 
 // Security and CORS Middleware (Must be before rate limiter to ensure headers are set)
 app.use(helmet());
