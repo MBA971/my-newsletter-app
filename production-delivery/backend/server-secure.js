@@ -332,7 +332,7 @@ app.get('/api/domains', async (req, res) => {
         const result = await pool.query(
             `SELECT d.*, COUNT(n.id) as articleCount 
              FROM domains d 
-             LEFT JOIN news n ON d.id = n.domain 
+             LEFT JOIN news n ON d.id = n.domain_id 
              GROUP BY d.id 
              ORDER BY d.id`
         );
@@ -377,7 +377,7 @@ app.delete('/api/domains/:id', authenticateToken, requireAdmin, async (req, res)
         const domainName = domainResult.rows[0].name;
 
         // Delete associated news
-        await pool.query('DELETE FROM news WHERE domain = $1', [domainName]);
+        await pool.query('DELETE FROM news WHERE domain_id = $1', [domainName]);
 
         // Delete domain
         await pool.query('DELETE FROM domains WHERE id = $1', [id]);
@@ -425,7 +425,7 @@ app.get('/api/news', async (req, res) => {
         const result = await pool.query(
             `SELECT n.*, d.name as domain_name 
              FROM news n 
-             JOIN domains d ON n.domain = d.id 
+             JOIN domains d ON n.domain_id = d.id 
              ORDER BY n.date DESC`
         );
         
@@ -456,9 +456,9 @@ app.get('/api/news/search', async (req, res) => {
         const result = await pool.query(
             `SELECT n.*, d.name as domain_name 
              FROM news n 
-             JOIN domains d ON n.domain = d.id 
-             WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 
-             ORDER BY date DESC`,
+             JOIN domains d ON n.domain_id = d.id 
+             WHERE n.title ILIKE $1 OR n.content ILIKE $1 OR n.author ILIKE $1 
+             ORDER BY n.date DESC`,
             [`%${q.trim()}%`]
         );
         res.json(result.rows);
@@ -505,7 +505,7 @@ app.post('/api/news', authenticateToken, requireContributor, checkDomainAccess, 
         console.log(`[DEBUG] After domain conversion - domain:`, domain, `type:`, typeof domain);
 
         const result = await pool.query(
-            'INSERT INTO news (title, domain, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
+            'INSERT INTO news (title, domain_id, content, author, date) VALUES ($1, $2, $3, $4, CURRENT_DATE) RETURNING *',
             [title, domain, content, author]
         );
         res.json(result.rows[0]);
@@ -591,7 +591,7 @@ app.put('/api/news/:id', authenticateToken, requireContributor, checkDomainAcces
         console.log(`[DEBUG] After domain conversion - domain:`, domain, `type:`, typeof domain);
 
         const result = await pool.query(
-            'UPDATE news SET title = $1, domain = $2, content = $3 WHERE id = $4 RETURNING *',
+            'UPDATE news SET title = $1, domain_id = $2, content = $3 WHERE id = $4 RETURNING *',
             [title, domain, content, id]
         );
         res.json(result.rows[0]);
@@ -645,7 +645,7 @@ app.get('/api/news/:id', async (req, res) => {
         const result = await pool.query(
             `SELECT n.*, d.name as domain_name 
              FROM news n 
-             JOIN domains d ON n.domain = d.id 
+             JOIN domains d ON n.domain_id = d.id 
              WHERE n.id = $1`,
             [id]
         );
@@ -676,9 +676,9 @@ app.get('/api/news/search', async (req, res) => {
         const result = await pool.query(
             `SELECT n.*, d.name as domain_name 
              FROM news n 
-             JOIN domains d ON n.domain = d.id 
-             WHERE title ILIKE $1 OR content ILIKE $1 OR author ILIKE $1 
-             ORDER BY date DESC`,
+             JOIN domains d ON n.domain_id = d.id 
+             WHERE n.title ILIKE $1 OR n.content ILIKE $1 OR n.author ILIKE $1 
+             ORDER BY n.date DESC`,
             [`%${q.trim()}%`]
         );
         res.json(result.rows);
