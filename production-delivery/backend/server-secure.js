@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import morgan from 'morgan';
 
 // Load environment variables
 dotenv.config();
@@ -73,6 +74,9 @@ const generalLimiter = rateLimit({
 
 // Apply general rate limiting to all requests
 app.use(generalLimiter);
+
+// Request logging
+app.use(morgan('combined'));
 
 // Parse JSON and Cookies
 app.use(express.json());
