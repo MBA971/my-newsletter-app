@@ -1,18 +1,22 @@
-// Handle Docker vs Localhost resolution
-let apiUrl = import.meta.env.VITE_API_URL || '';
+// For local development with Vite dev server, use relative paths to leverage Vite proxy
+// For Docker containers or production, use the configured API URL
+let apiUrl = '';
 
-// If running in browser and URL contains Docker service names, replace with localhost
-// This ensures consistency between local dev and production
-if (typeof window !== 'undefined' && apiUrl) {
-    // Replace various Docker service names with localhost
-    if (apiUrl.includes('://backend')) {
-        apiUrl = apiUrl.replace('://backend:', '://localhost:').replace('://backend', '://localhost:3002');
-    } else if (apiUrl.includes('://newsletter_backend')) {
-        apiUrl = apiUrl.replace('://newsletter_backend:', '://localhost:').replace('://newsletter_backend', '://localhost:3002');
-    } else if (apiUrl.includes('://newsletter-backend')) {
-        apiUrl = apiUrl.replace('://newsletter-backend:', '://localhost:').replace('://newsletter-backend', '://localhost:3002');
-    } else if (apiUrl.includes('://my-newsletter-app-backend')) {
-        apiUrl = apiUrl.replace('://my-newsletter-app-backend:', '://localhost:').replace('://my-newsletter-app-backend', '://localhost:3002');
+// Only use absolute URL if not in localhost development environment
+if (import.meta.env.VITE_API_URL && !(typeof window !== 'undefined' && window.location.hostname === 'localhost')) {
+    apiUrl = import.meta.env.VITE_API_URL;
+    
+    // If running in Docker container, replace service names with localhost
+    if (typeof window !== 'undefined') { // Only run in browser
+        if (apiUrl.includes('://backend')) {
+            apiUrl = apiUrl.replace('://backend:', '://localhost:').replace('://backend', '://localhost:3002');
+        } else if (apiUrl.includes('://newsletter_backend')) {
+            apiUrl = apiUrl.replace('://newsletter_backend:', '://localhost:').replace('://newsletter_backend', '://localhost:3002');
+        } else if (apiUrl.includes('://newsletter-backend')) {
+            apiUrl = apiUrl.replace('://newsletter-backend:', '://localhost:').replace('://newsletter-backend', '://localhost:3002');
+        } else if (apiUrl.includes('://my-newsletter-app-backend')) {
+            apiUrl = apiUrl.replace('://my-newsletter-app-backend:', '://localhost:').replace('://my-newsletter-app-backend', '://localhost:3002');
+        }
     }
 }
 
