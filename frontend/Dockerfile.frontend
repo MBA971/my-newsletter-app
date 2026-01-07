@@ -4,10 +4,6 @@ FROM node:20-alpine as build
 # Set working directory
 WORKDIR /app
 
-# Define build arguments
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
-
 # Copy frontend package files
 COPY package*.json ./
 
@@ -15,9 +11,11 @@ COPY package*.json ./
 RUN npm install
 
 # Copy frontend application code
-COPY . .
+COPY . ./
 
-# Build the React application
+# Build the React application with environment variables
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # Stage 2: Serve the React application using Nginx
